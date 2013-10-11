@@ -69,6 +69,11 @@ to follow links.  A few extra commands are also available:
   - g :: Save all modified files to disk, then refresh the search hit
          buffer from the actual contents of the disk files.
 
+In all Org buffers, command *C-x `* uses the contents of an existing
+=*Org grep*= buffer for moving to the next search hit.  If that buffer
+does not exist, or if there is no following hit, the standard Emacs
+action is used instead: usually moving to the next compilation error.
+
 ** Purpose, history
 
 Switching to Org, I immediately populated hundreds of Org files with

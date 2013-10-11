@@ -35,7 +35,9 @@
 (defvar org-grep-extensions '(".org")
   "List of extensions for searchable files.")
 
-(defvar org-grep-regexp nil)
+(defvar org-grep-buffer-name "*Org grep*")
+(defvar org-grep-hit-regexp "^- ")
+(defvar org-grep-user-regexp nil)
 
 (defun org-grep (regexp)
   (interactive
@@ -45,7 +47,7 @@
   (when (string-equal regexp "")
     (error "Nothing to find!"))
   ;; Launch grep according to REGEXP.
-  (pop-to-buffer "*Org grep*")
+  (pop-to-buffer org-grep-buffer-name)
   (toggle-read-only 0)
   (erase-buffer)
   (save-some-buffers t)
@@ -76,10 +78,10 @@
   (goto-char (point-min))
   (org-show-subtree)
   ;; Highlight the search string.
-  (when org-grep-regexp
-    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-regexp)))
+  (when org-grep-user-regexp
+    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp)))
   (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
-  (setq org-grep-regexp regexp)
+  (setq org-grep-user-regexp regexp)
   ;; Add special commands to the keymap.
   (use-local-map (copy-keymap (current-local-map)))
   (toggle-read-only 1)
@@ -88,7 +90,9 @@
   (local-set-key "." 'org-grep-current)
   (local-set-key "g" 'org-grep-recompute)
   (local-set-key "n" 'org-grep-next)
-  (local-set-key "p" 'org-grep-previous))
+  (local-set-key "p" 'org-grep-previous)
+  (when (boundp 'org-mode-map)
+    (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump)))
 
 (defun org-grep-join (fragments separator)
   (if fragments
@@ -120,25 +124,39 @@
   (org-open-at-point)
   (org-reveal))
 
+(defun org-grep-maybe-next-jump ()
+  (interactive)
+  (let ((buffer (current-buffer))
+        (hits (get-buffer org-grep-buffer-name))
+        jumped)
+    (when hits
+      (pop-to-buffer hits)
+      (when (re-search-forward org-grep-hit-regexp nil t)
+        (org-grep-current-jump)
+        (setq jumped t)))
+    (unless jumped
+      (set-buffer buffer)
+      (next-error))))
+
 (defun org-grep-next ()
   (interactive)
-  (when (re-search-forward "^- " nil t)
+  (when (re-search-forward org-grep-hit-regexp nil t)
     (org-grep-current)))
 
 (defun org-grep-next-jump ()
   (interactive)
-  (when (re-search-forward "^- " nil t)
+  (when (re-search-forward org-grep-hit-regexp nil t)
     (org-grep-current-jump)))
 
 (defun org-grep-previous ()
   (interactive)
-  (when (re-search-backward "^- " nil t)
+  (when (re-search-backward org-grep-hit-regexp nil t)
     (forward-char 2)
     (org-grep-current)))
 
 (defun org-grep-recompute ()
   (interactive)
-  (when org-grep-regexp
-    (org-grep org-grep-regexp)))
+  (when org-grep-user-regexp
+    (org-grep org-grep-user-regexp)))
 
 ;;; org-grep.el ends here
