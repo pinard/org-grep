@@ -93,11 +93,14 @@ which looks like a cleaner and easier way to proceed.
 are those I'm aware of:
 
 - The cursor does not come back into the resulting buffer, for some
-  navigation commands meant so it does.
+  navigation commands meant so it does.  =(save-current-buffer ...)= or
+  =(save-excursion ...)=, or even more explicit handling, fail to bring
+  the cursor back into the current window, seemingly whenever an Org
+  link gets followed within the Lisp form.
 
 - Navigation commands should reveal the goal line in the original Org
   buffer containing the grep hit, but the line stays collapsed and
-  hidden.
+  hidden.  It seems that =(org-reveal)= does not do its job.
 
 - The search string may not be always highlighted in the resulting
   buffer, depending on its capitalization.  This is because
@@ -108,3 +111,8 @@ are those I'm aware of:
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.
+
+I can live with some of these problems unsolved, as it only requires a
+few more manipulations as a user.  They would be nicer solved, of
+course.  Maybe someone would be kind enough to explore and understand
+some of these, at least before I succeed in doing it myself! ☺
