@@ -7,6 +7,10 @@ like =M-x rgrep=.
 
 ** Installation
 
+This tool has been developed on Linux, and likely requires a Unix-like
+system.  Otherwise, one needs compatible *find* and *grep* tools, and a
+shell able to properly decipher the arguments and establish a pipe.
+
 To install *org-grep*, just copy =org-grep.el= somewhere Emacs may
 find it.  Optionally, assign some key binding to toggle the mode.  For
 one, I added these lines to my =~/.emacs= file:
