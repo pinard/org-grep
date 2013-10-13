@@ -11,8 +11,8 @@ This tool has been developed on Linux, and likely requires a Unix-like
 system.  Otherwise, one needs compatible *find* and *grep* tools, and a
 shell able to properly decipher the arguments and establish a pipe.
 
-To install *org-grep*, just copy =org-grep.el= somewhere Emacs may
-find it.  Optionally, assign some key binding to toggle the mode.  For
+To install *org-grep*, just copy =org-grep.el= somewhere Emacs may find
+it.  Optionally, assign some key binding to trigger the tool.  For
 one, I added these lines to my =~/.emacs= file:
 
   #+BEGIN_SRC elisp
@@ -39,8 +39,8 @@ These are:
 
 To use this tool, either call =M-x org-grep= or the keybinding put aside
 for it, and reply to the =Org grep?= prompt with a regular expression to
-search for.  Happily enough, Emacs and the *grep* command use similar
-syntax for regular expressions.
+search for.  Happily enough, Emacs and the *grep* command use rather
+similar syntax for regular expressions.
 
 Be well aware that all currently opened files in Emacs are
 automatically saved to disk before that command gets executed.
@@ -81,20 +81,20 @@ action is used instead: usually moving to the next compilation error.
 ** Purpose, history
 
 Switching to Org, I immediately populated hundreds of Org files with
-data previously accumulated either as *allout* files, Tomboy notes or
-Workflowy items.  The standard Org mechanics for searching a
-collection files requires them to be put under the control of the Org
-agenda.  Given my volume of notes, Org mode was crawling, so I
-had to quickly develop some other mean for searching.
+data previously accumulated either as Emacs *allout* files ([[https://github.com/pinard/FP-etc/tree/master/allout-vim][or Vim!]]),
+Tomboy notes or Workflowy items.  The standard Org mechanics for
+searching a collection of files requires them under the control of the
+Org agenda.  Given my volume of notes, Org mode was crawling, so I had
+to relax the agenda and quickly develop some other mean for searching.
 
 The first =org-grep= I wrote was based on Emacs standard =M-x rgrep=,
 using hooks and other tricky machinery so it works the way I wanted.
-But =M-x rgrep= is limited to a single directory, and the =*grep*= buffer
-does not render Org lines as nicely as Org mode does.  This became
-critical for some long Org lines using a lot of heavy markup.
+Yet, =M-x rgrep= is limited to a single directory.  Moreover, the =*grep*=
+buffer does not render Org lines as nicely as Org mode does, and this
+became critical for some long Org lines using a lot of heavy markup.
 
-So I rewrote =org-grep= so the resulting output is a genuine Org file,
-which looks like a cleaner and easier way to proceed.
+So I rewrote =org-grep= with the resulting output as a genuine Org file.
+This seems like a cleaner and easier way to proceed.
 
 ** Caveats
 
@@ -103,9 +103,9 @@ are those I'm aware of:
 
 - The cursor does not come back into the resulting buffer, for some
   navigation commands meant so it does.  =(save-current-buffer ...)= or
-  =(save-excursion ...)=, or even more explicit handling, fail to bring
-  the cursor back into the current window, seemingly whenever an Org
-  link gets followed within the Lisp form.
+  =(save-excursion ...)=, or even more explicit handling, all fail to
+  bring the cursor back into the current window, seemingly whenever an
+  Org link gets followed within the Lisp form.
 
 - Navigation commands should reveal the goal line in the original Org
   buffer containing the grep hit, but the line stays collapsed and
