@@ -72,6 +72,7 @@ to follow links.  A few extra commands are also available:
          window (but see [[Caveats]] below).
   - g :: Save all modified files to disk, then refresh the search hit
          buffer from the actual contents of the disk files.
+  - q :: Quit the =*Org grep*= window, deleting it.
 
 In all Org buffers, command *C-x `* uses the contents of an existing
 =*Org grep*= buffer for moving to the next search hit.  If that buffer

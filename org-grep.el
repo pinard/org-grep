@@ -91,6 +91,7 @@
   (local-set-key "g" 'org-grep-recompute)
   (local-set-key "n" 'org-grep-next)
   (local-set-key "p" 'org-grep-previous)
+  (local-set-key "q" 'org-grep-quit)
   (when (boundp 'org-mode-map)
     (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump)))
 
@@ -153,6 +154,10 @@
   (when (re-search-backward org-grep-hit-regexp nil t)
     (forward-char 2)
     (org-grep-current)))
+
+(defun org-grep-quit ()
+  (interactive)
+  (kill-buffer))
 
 (defun org-grep-recompute ()
   (interactive)
