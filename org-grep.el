@@ -64,14 +64,19 @@
            (shell-quote-argument regexp))
    t)
   ;; Reformat output into Org format.
+  (goto-char (point-min))
+  (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
+    (let ((base (file-name-sans-extension
+                 (file-name-nondirectory (match-string 1)))))
+      (replace-match
+       (concat base "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))))
+  (sort-lines nil (point-min) (point-max))
   (let ((counter 0))
     (goto-char (point-min))
-    (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
-      (setq counter (1+ counter))
-      (replace-match (concat "- [[file:\\1::\\2]["
-                             (file-name-sans-extension
-                              (file-name-nondirectory (match-string 1)))
-                             ":]]\\2 :: ")))
+    (while (re-search-forward "^[^\0]+\0" nil t)
+      (replace-match "")
+      (forward-line 1)
+      (setq counter (1+ counter)))
     (goto-char (point-min))
     (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp)))
   (org-mode)
