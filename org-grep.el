@@ -36,6 +36,7 @@
   "List of extensions for searchable files.")
 
 (defvar org-grep-buffer-name "*Org grep*")
+(defvar org-grep-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-user-regexp nil)
 
@@ -93,6 +94,7 @@
   (local-set-key "\C-c\C-c" 'org-grep-current-jump)
   (local-set-key "\C-x`" 'org-grep-next-jump)
   (local-set-key "." 'org-grep-current)
+  (local-set-key "c" 'org-grep-copy)
   (local-set-key "g" 'org-grep-recompute)
   (local-set-key "n" 'org-grep-next)
   (local-set-key "p" 'org-grep-previous)
@@ -116,6 +118,21 @@
    "\\<[a-z]"
    (lambda (text) (format "[%s%s]" (upcase text) text))
    regexp))
+
+(defun org-grep-copy ()
+  (interactive)
+  (let ((buffer (get-buffer-create (format org-grep-buffer-name-copy-format
+                                           org-grep-user-regexp))))
+    (copy-to-buffer buffer (point-min) (point-max))
+    (switch-to-buffer buffer)
+    (goto-char (point-min))
+    (while (re-search-forward org-grep-hit-regexp nil t)
+      (insert "[ ] ")
+      (forward-line 1))
+    (org-mode)
+    (goto-char (point-min))
+    (org-show-subtree)))
+  
 
 (defun org-grep-current ()
   (interactive)
