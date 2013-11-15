@@ -69,8 +69,9 @@
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let ((base (file-name-sans-extension
                  (file-name-nondirectory (match-string 1)))))
-      (replace-match
-       (concat base "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))))
+      (replace-match (concat (downcase base) " "
+                             (format "%5d" (string-to-int (match-string 2)))
+                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))))
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0))
     (goto-char (point-min))
