@@ -64,14 +64,25 @@
            " -print0 | xargs -0 grep -i -n "
            (shell-quote-argument regexp))
    t)
-  ;; Reformat output into Org format.
+  ;; Prefix found lines with sorting keys, a NUL, and clickable information.
   (goto-char (point-min))
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
-    (let ((base (file-name-sans-extension
-                 (file-name-nondirectory (match-string 1)))))
+    (let* ((file (match-string 1))
+           (directory (file-name-directory file))
+           (base (file-name-sans-extension (file-name-nondirectory file))))
       (replace-match (concat (downcase base) " "
                              (format "%5d" (string-to-int (match-string 2)))
-                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))))
+                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
+      ;; Moderately try to resolve relative links.
+      (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
+                                (line-end-position) t)
+        (cond ((not (match-string 1))
+               (replace-match (concat "[[file:" file "::\\2")))
+              ((string-equal (match-string 1) "file:")
+               (unless (memq (aref (match-string 2) 0) '(?~ ?/))
+                 (replace-match
+                  (concat "[[file:" directory (match-string 2)))))))))
+  ;; Sort lines, remove sorting keys and the NUL.
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0))
     (goto-char (point-min))
@@ -81,6 +92,7 @@
       (setq counter (1+ counter)))
     (goto-char (point-min))
     (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp)))
+  ;; Activate Org mode on the results.
   (org-mode)
   (goto-char (point-min))
   (org-show-subtree)
