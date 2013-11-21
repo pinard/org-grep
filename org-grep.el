@@ -90,6 +90,9 @@
       (replace-match "")
       (forward-line 1)
       (setq counter (1+ counter)))
+    (when (zerop counter)
+      (kill-buffer)
+      (error "None found!"))
     (goto-char (point-min))
     (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp)))
   ;; Activate Org mode on the results.
