@@ -64,6 +64,10 @@
            " -print0 | xargs -0 grep -i -n "
            (shell-quote-argument regexp))
    t)
+  ;; For legibility, remove extra whitespace.
+  (goto-char (point-min))
+  (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
+    (replace-match " "))
   ;; Prefix found lines with sorting keys, a NUL, and clickable information.
   (goto-char (point-min))
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
