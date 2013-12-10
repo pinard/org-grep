@@ -98,29 +98,30 @@
       (kill-buffer)
       (error "None found!"))
     (goto-char (point-min))
-    (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp)))
-  ;; Activate Org mode on the results.
-  (org-mode)
-  (goto-char (point-min))
-  (org-show-subtree)
-  ;; Highlight the search string.
-  (when org-grep-user-regexp
-    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp)))
-  (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
-  (setq org-grep-user-regexp regexp)
-  ;; Add special commands to the keymap.
-  (use-local-map (copy-keymap (current-local-map)))
-  (toggle-read-only 1)
-  (local-set-key "\C-c\C-c" 'org-grep-current-jump)
-  (local-set-key "\C-x`" 'org-grep-next-jump)
-  (local-set-key "." 'org-grep-current)
-  (local-set-key "c" 'org-grep-copy)
-  (local-set-key "g" 'org-grep-recompute)
-  (local-set-key "n" 'org-grep-next)
-  (local-set-key "p" 'org-grep-previous)
-  (local-set-key "q" 'org-grep-quit)
-  (when (boundp 'org-mode-map)
-    (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump)))
+    (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp))
+    ;; Activate Org mode on the results.
+    (org-mode)
+    (goto-char (point-min))
+    (org-show-subtree)
+    ;; Highlight the search string.
+    (when org-grep-user-regexp
+      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp)))
+    (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
+    (setq org-grep-user-regexp regexp)
+    ;; Add special commands to the keymap.
+    (use-local-map (copy-keymap (current-local-map)))
+    (toggle-read-only 1)
+    (local-set-key "\C-c\C-c" 'org-grep-current-jump)
+    (local-set-key "\C-x`" 'org-grep-next-jump)
+    (local-set-key "." 'org-grep-current)
+    (local-set-key "c" 'org-grep-copy)
+    (local-set-key "g" 'org-grep-recompute)
+    (local-set-key "n" 'org-grep-next)
+    (local-set-key "p" 'org-grep-previous)
+    (local-set-key "q" 'org-grep-quit)
+    (when (boundp 'org-mode-map)
+      (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
+    counter))
 
 (defun org-grep-join (fragments separator)
   (if fragments
