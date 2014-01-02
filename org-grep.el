@@ -62,10 +62,10 @@ Each of such function is given REGEXP as an argument.")
                                 org-grep-extra-shell-commands))
                   "; ")))
     (shell-command command t))
-  ;; For legibility, remove extra whitespace.
+  ;; For legibility, remove some extra whitespace.
   (goto-char (point-min))
   (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
-    (replace-match " "))
+    (replace-match "  "))
   ;; Prefix found lines with sorting keys, a NUL, and clickable information.
   (goto-char (point-min))
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
