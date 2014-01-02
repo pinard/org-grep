@@ -35,6 +35,10 @@
 (defvar org-grep-extensions '(".org")
   "List of extensions for searchable files.")
 
+(defvar org-grep-extra-shell-commands nil
+  "List of functions providing extra shell commands for grepping.
+Each of such function is given REGEXP as an argument.")
+
 (defvar org-grep-buffer-name "*Org grep*")
 (defvar org-grep-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-hit-regexp "^- ")
@@ -52,18 +56,12 @@
   (toggle-read-only 0)
   (erase-buffer)
   (save-some-buffers t)
-  (shell-command
-   (concat "find "
-           (if org-grep-directories
-               (org-grep-join org-grep-directories " ")
-             org-directory)
-           (and org-grep-extensions
-                (concat " -regex '.*\\.\\("
-                        (org-grep-join org-grep-extensions "\\|")
-                        "\\)'"))
-           " -print0 | xargs -0 grep -i -n "
-           (shell-quote-argument regexp))
-   t)
+  (let ((command (org-grep-join
+                  (mapcar (lambda (function) (apply function (list regexp)))
+                          (cons 'org-grep-default-grep-command
+                                org-grep-extra-shell-commands))
+                  "; ")))
+    (shell-command command t))
   ;; For legibility, remove extra whitespace.
   (goto-char (point-min))
   (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
@@ -122,6 +120,19 @@
     (when (boundp 'org-mode-map)
       (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
     counter))
+
+(defun org-grep-default-grep-command (regexp)
+  (concat "find "
+          (if org-grep-directories
+              (org-grep-join org-grep-directories " ")
+            org-directory)
+          (and org-grep-extensions
+               (concat " -regex '.*\\("
+                       (org-grep-join (mapcar 'regexp-quote org-grep-extensions)
+                                      "\\|")
+                       "\\)'"))
+          " -print0 | xargs -0 grep -i -n "
+          (shell-quote-argument regexp)))
 
 (defun org-grep-join (fragments separator)
   (if fragments

@@ -24,7 +24,7 @@ yet of course, one may choose any other key binding.
 
 ** Usage
 
-Two Emacs variables may be set prior to, or after loading *org-grep*.
+A few Emacs variables may be set prior to, or after loading *org-grep*.
 These are:
 
   - org-grep-directories :: This is a list of directories which the
@@ -36,6 +36,16 @@ These are:
        list containing the =.org= string as its sole member.  If set to
        *nil*, all files are going to be searched, whatever their
        extension may be.
+  - org-grep-extra-shell-commands :: This is a list of Emacs Lisp
+       functions provided by the user, meant to further customize
+       searching.  Such functions may be used whenever variables
+       *org-grep-directories* and *org-grep-extensions* above are not
+       sufficient to describe user needs.  The default is *nil*, meaning
+       that there is no extra searching.  Each element in the list is
+       the symbol name for the function.  Each function receives the
+       regular expression given to *org-grep*, and returns a string
+       holding a shell command to provide some /grep-like/ output.  See
+       at the end of this section for an example.
 
 To use this tool, either call =M-x org-grep= or the keybinding put aside
 for it, and reply to the =Org grep?= prompt with a regular expression to
@@ -85,6 +95,19 @@ In all Org buffers, command *C-x `* uses the contents of an existing
 does not exist, or if there is no following hit, the standard Emacs
 action is used instead: usually moving to the next compilation error.
 
+Here is an example of using *org-grep-extra-shell-commands*.  Let's
+assume that one wants to /also/ search all non-Org files under Git
+control in the repository located at =~/share/bin/=.  One could use:
+
+#+BEGIN_SRC elisp
+  (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))
+
+  (defun fp-org-grep-in-share-bin (regexp)
+    (concat "(cd ~/share/bin; git grep -n "
+            (shell-quote-argument regexp)
+            " | sed 's,^,~/share/bin/,')"))
+#+END_SRC
+
 ** Purpose, history
 
 Switching to Org, I immediately populated hundreds of Org files with
@@ -105,8 +128,8 @@ This seems like a cleaner and easier way to proceed.
 
 ** Caveats
 
-*org-grep* works relatively OK for me, yet a few problems remain.  Here
-are those I'm aware of:
+*org-grep* is constantly useful to me, yet a few minor problems remain,
+which I can easily live with.  Here are those I'm aware of:
 
 - The cursor does not come back into the resulting buffer, for some
   navigation commands meant so it does.  =(save-current-buffer ...)= or
@@ -127,8 +150,3 @@ are those I'm aware of:
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.
-
-I can live with some of these problems unsolved, as it only requires a
-few more manipulations as a user.  They would be nicer solved, of
-course.  Maybe someone would be kind enough to explore and understand
-some of these, at least before I succeed in doing it myself! ☺
