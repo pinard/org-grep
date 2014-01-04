@@ -78,12 +78,14 @@ Each of such function is given REGEXP as an argument.")
       ;; Moderately try to resolve relative links.
       (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
                                 (line-end-position) t)
-        (cond ((not (match-string 1))
-               (replace-match (concat "[[file:" file "::\\2")))
-              ((string-equal (match-string 1) "file:")
-               (unless (memq (aref (match-string 2) 0) '(?~ ?/))
-                 (replace-match
-                  (concat "[[file:" directory (match-string 2)))))))))
+        (let ((method (match-string 1))
+              (reference (match-string 2)))
+          (cond ((not method)
+                 (replace-match (concat "[[file:" file "::\\2")))
+                ((member method '("file:" "rmail:"))
+                 (unless (memq (aref reference 0) '(?~ ?/))
+                   (replace-match
+                    (concat "[[" method directory reference)))))))))
   ;; Sort lines, remove sorting keys and the NUL.
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0))

@@ -150,3 +150,10 @@ which I can easily live with.  Here are those I'm aware of:
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.
+
+- Relative links are relocated in the hits buffer so they can be
+  followed, regardless of the directory they come from.  But this is
+  done only for general links: those internally using double brackets.
+  Implicit or explicit =file:= links, and also =rmail:= links, are the
+  only ones to be so relocated.  Plain URL-like links are not
+  relocated: I would need some dependable machinery to recognize them.
