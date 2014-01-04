@@ -48,12 +48,12 @@ Each of such function is given REGEXP as an argument.")
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
-           (read-string "Org grep? "))))
+           (read-string "Enter a string or a regexp to grep: "))))
   (when (string-equal regexp "")
-    (error "Nothing to find!"))
+    (user-error "Nothing to find!"))
   ;; Launch grep according to REGEXP.
   (pop-to-buffer org-grep-buffer-name)
-  (toggle-read-only 0)
+  (setq buffer-read-only nil)
   (erase-buffer)
   (save-some-buffers t)
   (let ((command (org-grep-join
@@ -73,7 +73,7 @@ Each of such function is given REGEXP as an argument.")
            (directory (file-name-directory file))
            (base (file-name-sans-extension (file-name-nondirectory file))))
       (replace-match (concat (downcase base) " "
-                             (format "%5d" (string-to-int (match-string 2)))
+                             (format "%5d" (string-to-number (match-string 2)))
                              "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
       ;; Moderately try to resolve relative links.
       (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
@@ -108,7 +108,7 @@ Each of such function is given REGEXP as an argument.")
     (setq org-grep-user-regexp regexp)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
-    (toggle-read-only 1)
+    (setq buffer-read-only t)
     (local-set-key "\C-c\C-c" 'org-grep-current-jump)
     (local-set-key "\C-x`" 'org-grep-next-jump)
     (local-set-key "." 'org-grep-current)
