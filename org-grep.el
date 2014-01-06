@@ -25,7 +25,10 @@
 ;; This tool allows for grepping files in a set of Org directories,
 ;; formatting the results as a separate Org buffer.  This buffer is
 ;; assorted with a few specific navigation commands so it works a bit
-;; like M-x rgrep.  See https://github.com/pinard/org-grep.
+;; like M-x rgrep.  Optionally, the tool may simultaneously search
+;; Unix mailboxes, Gnus folders, or other textual files.
+
+;; See https://github.com/pinard/org-grep.
 
 ;;; Code:
 
@@ -39,9 +42,19 @@
   "List of functions providing extra shell commands for grepping.
 Each of such function is given REGEXP as an argument.")
 
-(defvar org-grep-buffer-name "*Org grep*")
-(defvar org-grep-buffer-name-copy-format "*Org grep %s*")
+(defvar org-grep-gnus-directory nil
+  "Directory holding Gnus mail files.  Often ~/Mail.")
+
+(defvar org-grep-rmail-shell-commands nil
+  "List of functions providing shell commands to grep mailboxes.
+Each of such function is given REGEXP as an argument.")
+
+(defvar org-grep-hits-buffer-name " *Org grep hits*")
+(defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-hit-regexp "^- ")
+(defvar org-grep-mail-buffer nil)
+(defvar org-grep-mail-buffer-file nil)
+(defvar org-grep-mail-buffer-name " *Org grep mail*")
 (defvar org-grep-user-regexp nil)
 
 (defun org-grep (regexp)
@@ -51,41 +64,18 @@ Each of such function is given REGEXP as an argument.")
            (read-string "Enter a string or a regexp to grep: "))))
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
-  ;; Launch grep according to REGEXP.
-  (pop-to-buffer org-grep-buffer-name)
+  ;; Collect information.  Methods should prefix each line with
+  ;; sorting keys, a NUL, "- ", clickable information, then " :: ".  A
+  ;; sorting key before the NUL is the concatenation of some
+  ;; alphabetical string related to the file name, followed by a line
+  ;; number justified to the right into 5 columns and space filled.
+  (pop-to-buffer org-grep-hits-buffer-name)
   (setq buffer-read-only nil)
   (erase-buffer)
   (save-some-buffers t)
-  (let ((command (org-grep-join
-                  (mapcar (lambda (function) (apply function (list regexp)))
-                          (cons 'org-grep-default-grep-command
-                                org-grep-extra-shell-commands))
-                  "; ")))
-    (shell-command command t))
-  ;; For legibility, remove some extra whitespace.
-  (goto-char (point-min))
-  (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
-    (replace-match "  "))
-  ;; Prefix found lines with sorting keys, a NUL, and clickable information.
-  (goto-char (point-min))
-  (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
-    (let* ((file (match-string 1))
-           (directory (file-name-directory file))
-           (base (file-name-sans-extension (file-name-nondirectory file))))
-      (replace-match (concat (downcase base) " "
-                             (format "%5d" (string-to-number (match-string 2)))
-                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
-      ;; Moderately try to resolve relative links.
-      (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
-                                (line-end-position) t)
-        (let ((method (match-string 1))
-              (reference (match-string 2)))
-          (cond ((not method)
-                 (replace-match (concat "[[file:" file "::\\2")))
-                ((member method '("file:" "rmail:"))
-                 (unless (memq (aref reference 0) '(?~ ?/))
-                   (replace-match
-                    (concat "[[" method directory reference)))))))))
+  (org-grep-from-org regexp)
+  (org-grep-from-rmail regexp)
+  (org-grep-from-gnus regexp)
   ;; Sort lines, remove sorting keys and the NUL.
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0))
@@ -99,6 +89,10 @@ Each of such function is given REGEXP as an argument.")
       (error "None found!"))
     (goto-char (point-min))
     (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp))
+    ;; For legibility, remove some extra whitespace.
+    (goto-char (point-min))
+    (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
+      (replace-match "  "))
     ;; Activate Org mode on the results.
     (org-mode)
     (goto-char (point-min))
@@ -121,20 +115,131 @@ Each of such function is given REGEXP as an argument.")
     (local-set-key "q" 'org-grep-quit)
     (when (boundp 'org-mode-map)
       (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
+    ;; Clean up.
+    (when org-grep-mail-buffer
+      (kill-buffer org-grep-mail-buffer)
+      (setq org-grep-mail-buffer nil
+            org-grep-mail-buffer-file nil))
     counter))
 
-(defun org-grep-default-grep-command (regexp)
+(defun org-grep-from-org (regexp)
+  ;; Execute shell command.
+  (goto-char (point-max))
+  (let ((command (org-grep-join
+                  (mapcar (lambda (function) (apply function (list regexp)))
+                          (cons 'org-grep-from-org-shell-command
+                                org-grep-extra-shell-commands))
+                  "; ")))
+    (shell-command command t))
+  ;; Prefix found lines.
+  (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
+    (let* ((file (match-string 1))
+           (line (string-to-number (match-string 2)))
+           (directory (file-name-directory file))
+           (base (file-name-sans-extension (file-name-nondirectory file))))
+      (replace-match (concat (downcase base) " " (format "%5d" line)
+                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
+      ;; Moderately try to resolve relative links.
+      (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
+                                (line-end-position) t)
+        (let ((method (match-string 1))
+              (reference (match-string 2)))
+          (cond ((not method)
+                 (replace-match (concat "[[file:" file "::\\2")))
+                ((member method '("file:" "rmail:"))
+                 (unless (memq (aref reference 0) '(?~ ?/))
+                   (replace-match
+                    (concat "[[" method directory reference)))))))
+      (forward-line))))
+
+(defun org-grep-from-gnus (regexp)
+  (when (and org-grep-gnus-directory
+             (file-directory-p org-grep-gnus-directory))
+    ;; Execute shell command.
+    (goto-char (point-max))
+    (let ((command
+           (concat
+            "find " org-grep-gnus-directory " -type f"
+            " | grep -v"
+            " '\\(^\\|/\\)[#.]\\|~$\\|\\.mrk$\\|\\.nov$\\|\\.overview$'"
+            " | grep -v"
+            " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
+            " | xargs grep -n " (shell-quote-argument regexp))))
+      (shell-command command t))
+    ;; Prefix found lines.
+    (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
+      (let* ((file (match-string 1))
+             (line (string-to-number (match-string 2)))
+             (base (file-name-nondirectory file))
+             (ref (save-match-data (org-grep-message-ref
+                                    file line org-grep-gnus-directory))))
+        (save-match-data
+          (when (string-match "^[0-9]+$" base)
+            (setq base (file-name-nondirectory
+                        (substring (file-name-directory file) 0 -1)))))
+        (replace-match
+         (concat (downcase base) " " (format "%5d" line) "\0- [[" ref
+                 "][" base ":]]" (number-to-string line) " :: "))
+        (forward-line)))))
+
+(defun org-grep-from-rmail (regexp)
+  ;; Execute shell command.
+  (goto-char (point-max))
+  (let ((command (org-grep-join
+                  (mapcar (lambda (function) (apply function (list regexp)))
+                          org-grep-rmail-shell-commands)
+                  "; ")))
+    (shell-command command t))
+  ;; Prefix found lines.
+  (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
+    (let* ((file (match-string 1))
+           (line (string-to-number (match-string 2)))
+           (base (file-name-sans-extension (file-name-nondirectory file)))
+           (ref (save-match-data (org-grep-message-ref file line nil))))
+      (replace-match
+       (concat (downcase base) " " (format "%5d" line) "\0- [[" ref
+               "][" base ":]]" (number-to-string line) " :: "))
+      (forward-line))))
+
+(defun org-grep-from-org-shell-command (regexp)
   (concat "find "
           (if org-grep-directories
               (org-grep-join org-grep-directories " ")
             org-directory)
           (and org-grep-extensions
                (concat " -regex '.*\\("
-                       (org-grep-join (mapcar 'regexp-quote org-grep-extensions)
-                                      "\\|")
+                       (org-grep-join
+                        (mapcar 'regexp-quote org-grep-extensions)
+                        "\\|")
                        "\\)'"))
           " -print0 | xargs -0 grep -i -n "
           (shell-quote-argument regexp)))
+
+(defun org-grep-message-ref (file line gnus-directory)
+  (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
+    (setq org-grep-mail-buffer (get-buffer-create org-grep-mail-buffer-name)))
+  (save-excursion
+    (set-buffer org-grep-mail-buffer)
+    (unless (string-equal file org-grep-mail-buffer-file)
+      (erase-buffer)
+      (insert-file file)
+      (setq org-grep-mail-buffer-file file))
+    (let ((case-fold-search t))
+      (goto-line line)
+      ;; FIXME: Should limit search to current message header!
+      (if (not (search-backward "\nmessage-id:" nil t))
+          (concat "file:" file "::" (number-to-string line))
+        (forward-char 12)
+        (skip-chars-forward " ")
+        (let ((id (buffer-substring (point) (line-end-position))))
+          (if gnus-directory
+              (let ((group (dired-make-relative file gnus-directory)))
+                (if (string-equal (substring group 0 6) "/nnml/")
+                    (concat "gnus:nnml:"
+                            (substring (file-name-directory group) 6 -1)
+                            "#" id)
+                  (concat "gnus:nnfolder:" group "#" id)))
+            (concat "rmail:" file "#" id)))))))
 
 (defun org-grep-join (fragments separator)
   (if fragments
@@ -155,7 +260,7 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-copy ()
   (interactive)
-  (let ((buffer (get-buffer-create (format org-grep-buffer-name-copy-format
+  (let ((buffer (get-buffer-create (format org-grep-hits-buffer-name-copy-format
                                            org-grep-user-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
@@ -166,7 +271,6 @@ Each of such function is given REGEXP as an argument.")
     (org-mode)
     (goto-char (point-min))
     (org-show-subtree)))
-  
 
 (defun org-grep-current ()
   (interactive)
@@ -184,7 +288,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-maybe-next-jump ()
   (interactive)
   (let ((buffer (current-buffer))
-        (hits (get-buffer org-grep-buffer-name))
+        (hits (get-buffer org-grep-hits-buffer-name))
         jumped)
     (when hits
       (pop-to-buffer hits)
