@@ -4,7 +4,7 @@ This tool allows for grepping files in a set of Org directories,
 formatting the results as a separate Org buffer.  This buffer is
 assorted with a few specific navigation commands so it works a bit
 like =M-x rgrep=.  Optionally, the tool may simultaneously search
-Unix mailboxes, Gnus folders, or other textual files.
+Unix mailboxes, Gnus mailgroups, or other textual files.
 
 ** Installation
 
@@ -48,18 +48,24 @@ These are:
        holding a shell command to provide some /grep-like/ output.  See
        at the end of this section for an example.
   - org-grep-gnus-directory :: This string names the directory holding
-       all Gnus mail files.  The feature is not used if the value is
-       *nil*, or if the directory does not exist.  A common value is
-       =~/Mail=.  When the feature is used, links from the hits buffer
-       open whole messages, yet without positioning the cursor on the
-       precise hit line.  The *org-grep-extra-shell-commands* mechanics
-       could be used instead to get precise positioning, and more
-       speed as well, but without the comfort of a proper Emacs mode.
+       all Gnus mail files.  The value is only used when a prefix
+       argument is given to the *org-grep* command, or when a second
+       argument *t* is given to the function.  The feature is not used
+       if the value is *nil*, or if the directory does not exist.  A
+       common value is =~/Mail=.  When the feature is used, links from
+       the hits buffer open whole messages, yet without positioning
+       the cursor on the precise hit line.  The
+       *org-grep-extra-shell-commands* mechanics could be used instead
+       to get precise positioning, and more speed as well, but without
+       the comfort of a proper Emacs mode.
   - org-grep-rmail-shell-commands :: This variable works similarly to
        the *org-grep-extra-shell-commands* variable, except that all
-       searched files should then be Unix mailboxes.  Limitations
-       about links and positioning also apply, as explained in the
-       description of the *org-grep-gnus-directory* variable.
+       searched files should then be Unix mailboxes.  The value is
+       only used when a prefix argument is given to the *org-grep*
+       command, or when a second argument *t* is given to the function.
+       Limitations about links and positioning also apply, as
+       explained in the description of the *org-grep-gnus-directory*
+       variable.
 
 To use this tool, either call =M-x org-grep= or the keybinding put aside
 for it, and reply to the =Org grep?= prompt with a regular expression to

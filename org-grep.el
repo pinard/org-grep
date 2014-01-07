@@ -26,7 +26,7 @@
 ;; formatting the results as a separate Org buffer.  This buffer is
 ;; assorted with a few specific navigation commands so it works a bit
 ;; like M-x rgrep.  Optionally, the tool may simultaneously search
-;; Unix mailboxes, Gnus folders, or other textual files.
+;; Unix mailboxes, Gnus mailgroups, or other textual files.
 
 ;; See https://github.com/pinard/org-grep.
 
@@ -57,11 +57,12 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-mail-buffer-name " *Org grep mail*")
 (defvar org-grep-user-regexp nil)
 
-(defun org-grep (regexp)
+(defun org-grep (regexp &optional full)
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a string or a regexp to grep: "))))
+           (read-string "Enter a string or a regexp to grep: "))
+         current-prefix-arg))
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
   ;; Collect information.  Methods should prefix each line with
@@ -74,8 +75,9 @@ Each of such function is given REGEXP as an argument.")
   (erase-buffer)
   (save-some-buffers t)
   (org-grep-from-org regexp)
-  (org-grep-from-rmail regexp)
-  (org-grep-from-gnus regexp)
+  (when full
+    (org-grep-from-rmail regexp)
+    (org-grep-from-gnus regexp))
   ;; Sort lines, remove sorting keys and the NUL.
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0))
@@ -238,7 +240,7 @@ Each of such function is given REGEXP as an argument.")
                     (concat "gnus:nnml:"
                             (substring (file-name-directory group) 6 -1)
                             "#" id)
-                  (concat "gnus:nnfolder:" group "#" id)))
+                  (concat "gnus:nnfolder:" (substring group 1) "#" id)))
             (concat "rmail:" file "#" id)))))))
 
 (defun org-grep-join (fragments separator)
