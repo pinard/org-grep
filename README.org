@@ -203,3 +203,7 @@ which I can easily live with.  Here are those I'm aware of:
   Implicit or explicit =file:= links, and also =rmail:= links, are the
   only ones to be so relocated.  Plain URL-like links are not
   relocated: I would need some dependable machinery to recognize them.
+
+- The size of any elided text is reduced so the elision occurs on word
+  boundaries.  As a consequence, it may happen that long words prevent
+  elision.
