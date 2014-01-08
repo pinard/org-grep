@@ -84,6 +84,9 @@ for altering its behavior.  These variables are:
        explained in the description of the *org-grep-gnus-directory*
        variable.
 
+*org-grep* also complies with the Emacs variable *case-fold-search*.
+If that variable is not *nil*, *org-grep* ignore case differences.
+
 ** Usage
 
 To use this tool, either call =M-x org-grep= or the keybinding put aside
@@ -142,8 +145,8 @@ control in the repository located at =~/share/bin/=.  One could use:
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))
 
   (defun fp-org-grep-in-share-bin (regexp)
-    (concat "(cd ~/share/bin; git grep -n "
-            (shell-quote-argument regexp)
+    (concat "(cd ~/share/bin; git grep" (if case-fold-search " -i" "")
+            " -n " (shell-quote-argument regexp)
             " | sed 's,^,~/share/bin/,')"))
 #+END_SRC
 
@@ -182,10 +185,14 @@ which I can easily live with.  Here are those I'm aware of:
 
 - The search string may not be always highlighted in the resulting
   buffer, depending on its capitalization.  This is because
-  =case-fold-search= is ignored by the highlighting mechanism in Emacs.
+  *case-fold-search* is ignored by the highlighting mechanism in Emacs.
   The first letter of the pattern is recognized in both cases, this
   slightly alleviates the problem, this does not work for letters
   outside ASCII.
+
+- If *case-fold-search* is *t* (not *nil* to be precise), *org-grep* calls
+  *grep* with the *-i* flag, which may slow it down considerably.  The
+  difference is very noticeable for me when reading Gnus mailgroups.
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.

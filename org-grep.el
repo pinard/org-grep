@@ -196,7 +196,8 @@ Each of such function is given REGEXP as an argument.")
             " '\\(^\\|/\\)[#.]\\|~$\\|\\.mrk$\\|\\.nov$\\|\\.overview$'"
             " | grep -v"
             " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
-            " | xargs grep -n " (shell-quote-argument regexp))))
+            " | xargs grep" (if case-fold-search " -i" "")
+            " -n " (shell-quote-argument regexp))))
       (shell-command command t))
     ;; Prefix found lines.
     (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
@@ -244,8 +245,8 @@ Each of such function is given REGEXP as an argument.")
                         (mapcar 'regexp-quote org-grep-extensions)
                         "\\|")
                        "\\)'"))
-          " -print0 | xargs -0 grep -i -n "
-          (shell-quote-argument regexp)))
+          " -print0 | xargs -0 grep" (if case-fold-search " -i" "")
+          " -n " (shell-quote-argument regexp)))
 
 (defun org-grep-message-ref (file line gnus-directory)
   (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
@@ -285,10 +286,12 @@ Each of such function is given REGEXP as an argument.")
   ;; Stolen from hi-lock-process-phrase.
   ;; FIXME: ASCII only.  Sad that hi-lock ignores case-fold-search!
   ;; Also, hi-lock-face-phrase-buffer does not have an unface counterpart.
-  (replace-regexp-in-string
-   "\\<[a-z]"
-   (lambda (text) (format "[%s%s]" (upcase text) text))
-   regexp))
+  (if case-fold-search
+      (replace-regexp-in-string
+       "\\<[a-z]"
+       (lambda (text) (format "[%s%s]" (upcase text) text))
+       regexp)
+    regexp))
 
 (defun org-grep-copy ()
   (interactive)
