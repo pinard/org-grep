@@ -23,15 +23,32 @@ one, I added these lines to my =~/.emacs= file:
 
 yet of course, one may choose any other key binding.
 
-** Usage
+** Configuration
 
-A few Emacs variables may be set prior to, or after loading *org-grep*.
-These are:
+*org-grep* may be used immediately, without any configuration.  However,
+a few Emacs variables may be set prior to, or after loading *org-grep,
+for altering its behavior.  These variables are:
 
   - org-grep-directories :: This is a list of directories which the
        *org-grep* command recursively searches.  When *nil*, which is the
        default, the command searches within the hierarchy identified
        by the Org standard *org-directory* variable.
+  - org-grep-ellipsis :: This string is used to mark, in the hits
+       buffer, context fragments which have been deleted.  The default
+       is =[...]=.  Do not customize it with a string which likely
+       appears frequently in your original text: all occurrences will
+       be highlighted regardless if the ellipsis was real or not,
+       making the result more difficult to correctly interpret.
+  - org-grep-maximum-context-size :: Some matched lines may be long
+       enough to be seen as bringing pollution in the hits buffer,
+       this variable controls how some of the text may get removed.
+       The context fragments in a line come from the text between
+       hits, or between the beginning of a line and a hit, or between
+       a hit and the end of the line.  If the size of a context
+       fragment is bigger than the value of this variable (200 by
+       default), the middle part of the context fragment is removed
+       and replaced by the *org-grep-ellipsis* string.  However, if this
+       variable is *nil*, context is always shown in full.
   - org-grep-extensions :: This is a list of file extensions to retain
        for the search, including the leading period.  The default is a
        list containing the =.org= string as its sole member.  If set to
@@ -67,10 +84,12 @@ These are:
        explained in the description of the *org-grep-gnus-directory*
        variable.
 
+** Usage
+
 To use this tool, either call =M-x org-grep= or the keybinding put aside
-for it, and reply to the =Org grep?= prompt with a regular expression to
-search for.  Happily enough, Emacs and the *grep* command use rather
-similar syntax for regular expressions.
+for it, and reply to the prompt with a regular expression to search
+for.  Happily enough, Emacs and the *grep* command use rather similar
+syntax for regular expressions.
 
 Be well aware that all currently opened files in Emacs are
 automatically saved to disk before that command gets executed.

@@ -35,6 +35,12 @@
 (defvar org-grep-directories nil
   "Directories to search, or ORG-DIRECTORY if nil.")
 
+(defvar org-grep-ellipsis "[...]"
+  "Ellipsis text to replace any removed context.")
+
+(defvar org-grep-maximum-context-size 200
+  "Maximum size of a context chunk within a hit line, nil means no limit.")
+
 (defvar org-grep-extensions '(".org")
   "List of extensions for searchable files.")
 
@@ -71,6 +77,7 @@ Each of such function is given REGEXP as an argument.")
   ;; alphabetical string related to the file name, followed by a line
   ;; number justified to the right into 5 columns and space filled.
   (pop-to-buffer org-grep-hits-buffer-name)
+  (fundamental-mode)
   (setq buffer-read-only nil)
   (erase-buffer)
   (save-some-buffers t)
@@ -89,20 +96,43 @@ Each of such function is given REGEXP as an argument.")
     (when (zerop counter)
       (kill-buffer)
       (error "None found!"))
-    (goto-char (point-min))
-    (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp))
-    ;; For legibility, remove some extra whitespace.
+    ;; Remove extra whitespace, also elide big contexts.
     (goto-char (point-min))
     (while (re-search-forward "[ \f\t\b][ \f\t\b]+" nil t)
       (replace-match "  "))
+    (when org-grep-maximum-context-size
+      (let ((regexp-or-newline (concat "\n\\|\\(?:" regexp "\\)"))
+            (distance-trigger (+ org-grep-maximum-context-size
+                                 (length org-grep-ellipsis)))
+            start-context end-context resume-point)
+        (goto-char (point-min))
+        (while (not (eobp))
+          (setq start-context (point))
+          (if (re-search-forward regexp-or-newline nil t)
+              (setq end-context (match-beginning 0)
+                    resume-point (match-end 0))
+            (setq end-context (point-max)
+                  resume-point (point-max)))
+          (let ((delta (- end-context start-context distance-trigger)))
+            (when (> delta 0)
+              (goto-char (+ start-context
+                            (/ org-grep-maximum-context-size 2)))
+              (delete-char (+ delta (length org-grep-ellipsis)))
+              (insert org-grep-ellipsis)
+              (setq resume-point (- resume-point delta))))
+          (goto-char resume-point))))
     ;; Activate Org mode on the results.
+    (goto-char (point-min))
+    (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp))
     (org-mode)
     (goto-char (point-min))
     (org-show-subtree)
-    ;; Highlight the search string.
+    ;; Highlight the search string and each ellipsis.
     (when org-grep-user-regexp
-      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp)))
+      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp))
+      (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
+    (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
     (setq org-grep-user-regexp regexp)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
