@@ -142,7 +142,9 @@ Each of such function is given REGEXP as an argument.")
       (error "None found!"))
     ;; Activate Org mode on the results.
     (goto-char (point-min))
-    (insert (format "* Grep found %d occurrences of %s\n\n" counter regexp))
+    (insert (format "* Grep found %d occurrences of %s (/%s case/)\n\n"
+                    counter regexp
+                    (if org-grep-case-fold-search "folded" "strict")))
     (org-mode)
     (goto-char (point-min))
     (org-show-subtree)
