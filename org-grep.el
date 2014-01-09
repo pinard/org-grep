@@ -61,7 +61,8 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
 (defvar org-grep-mail-buffer-name " *Org grep mail*")
-(defvar org-grep-user-regexp nil)
+(defvar org-grep-last-regexp nil)
+(defvar org-grep-last-full nil)
 
 (defun org-grep (regexp &optional full)
   (interactive
@@ -144,12 +145,13 @@ Each of such function is given REGEXP as an argument.")
     (goto-char (point-min))
     (org-show-subtree)
     ;; Highlight the search string and each ellipsis.
-    (when org-grep-user-regexp
-      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-user-regexp))
+    (when org-grep-last-regexp
+      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-last-regexp))
       (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
-    (setq org-grep-user-regexp regexp)
+    (setq org-grep-last-regexp regexp
+          org-grep-last-full full)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -312,7 +314,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-copy ()
   (interactive)
   (let ((buffer (get-buffer-create (format org-grep-hits-buffer-name-copy-format
-                                           org-grep-user-regexp))))
+                                           org-grep-last-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
     (goto-char (point-min))
@@ -372,7 +374,7 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-recompute ()
   (interactive)
-  (when org-grep-user-regexp
-    (org-grep org-grep-user-regexp)))
+  (when org-grep-last-regexp
+    (org-grep org-grep-last-regexp org-grep-last-full)))
 
 ;;; org-grep.el ends here
