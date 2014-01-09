@@ -35,7 +35,7 @@
 (defvar org-grep-directories nil
   "Directories to search, or ORG-DIRECTORY if nil.")
 
-(defvar org-grep-ellipsis "[...]"
+(defvar org-grep-ellipsis " … "
   "Ellipsis text to replace any removed context.")
 
 (defvar org-grep-maximum-context-size 200
