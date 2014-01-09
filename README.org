@@ -41,6 +41,7 @@ for altering its behavior.  These variables are:
        string which appears frequently in your files: all occurrences
        will be highlighted regardless if the ellipsis was real or not,
        making the result more difficult to correctly interpret.
+       If the value is *nil*, context is always shown in full.
   - org-grep-maximum-context-size :: Some matched lines may be long
        enough to be seen as bringing pollution in the hits buffer,
        this variable controls how some of the text may get removed.
