@@ -87,8 +87,11 @@ for altering its behavior.  These variables are:
        explained in the description of the *org-grep-gnus-directory*
        variable.
 
-*org-grep* also complies with the Emacs variable *case-fold-search*.
-If that variable is not *nil*, *org-grep* ignore case differences.
+*org-grep* complies with the Emacs variable *case-fold-search*, as set in
+the buffer which is current when the command is launched.  The value
+is then copied into *org-grep-case-fold-search*: user functions
+providing shell commands should consult that copy, and not
+*case-fold-search* directly.
 
 ** Usage
 
@@ -148,7 +151,7 @@ control in the repository located at =~/share/bin/=.  One could use:
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))
 
   (defun fp-org-grep-in-share-bin (regexp)
-    (concat "(cd ~/share/bin; git grep" (if case-fold-search " -i" "")
+    (concat "(cd ~/share/bin; git grep" (if org-grep-case-fold-search " -i" "")
             " -n " (shell-quote-argument regexp)
             " | sed 's,^,~/share/bin/,')"))
 #+END_SRC

@@ -55,14 +55,15 @@ Each of such function is given REGEXP as an argument.")
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
 
+(defvar org-grep-case-fold-search nil)
+(defvar org-grep-full nil)
+(defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-hits-buffer-name " *Org grep hits*")
 (defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
-(defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
 (defvar org-grep-mail-buffer-name " *Org grep mail*")
-(defvar org-grep-last-regexp nil)
-(defvar org-grep-last-full nil)
+(defvar org-grep-regexp nil)
 
 (defun org-grep (regexp &optional full)
   (interactive
@@ -77,6 +78,7 @@ Each of such function is given REGEXP as an argument.")
   ;; sorting key before the NUL is the concatenation of some
   ;; alphabetical string related to the file name, followed by a line
   ;; number justified to the right into 5 columns and space filled.
+  (setq org-grep-case-fold-search case-fold-search)
   (pop-to-buffer org-grep-hits-buffer-name)
   (fundamental-mode)
   (setq buffer-read-only nil)
@@ -145,13 +147,13 @@ Each of such function is given REGEXP as an argument.")
     (goto-char (point-min))
     (org-show-subtree)
     ;; Highlight the search string and each ellipsis.
-    (when org-grep-last-regexp
-      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-last-regexp))
+    (when org-grep-regexp
+      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-regexp))
       (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
-    (setq org-grep-last-regexp regexp
-          org-grep-last-full full)
+    (setq org-grep-regexp regexp
+          org-grep-full full)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -214,7 +216,7 @@ Each of such function is given REGEXP as an argument.")
             " '\\(^\\|/\\)[#.]\\|~$\\|\\.mrk$\\|\\.nov$\\|\\.overview$'"
             " | grep -v"
             " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
-            " | xargs grep" (if case-fold-search " -i" "")
+            " | xargs grep" (if org-grep-case-fold-search " -i" "")
             " -n " (shell-quote-argument regexp))))
       (shell-command command t))
     ;; Prefix found lines.
@@ -263,7 +265,7 @@ Each of such function is given REGEXP as an argument.")
                         (mapcar 'regexp-quote org-grep-extensions)
                         "\\|")
                        "\\)'"))
-          " -print0 | xargs -0 grep" (if case-fold-search " -i" "")
+          " -print0 | xargs -0 grep" (if org-grep-case-fold-search " -i" "")
           " -n " (shell-quote-argument regexp)))
 
 (defun org-grep-message-ref (file line gnus-directory)
@@ -304,7 +306,7 @@ Each of such function is given REGEXP as an argument.")
   ;; Stolen from hi-lock-process-phrase.
   ;; FIXME: ASCII only.  Sad that hi-lock ignores case-fold-search!
   ;; Also, hi-lock-face-phrase-buffer does not have an unface counterpart.
-  (if case-fold-search
+  (if org-grep-case-fold-search
       (replace-regexp-in-string
        "\\<[a-z]"
        (lambda (text) (format "[%s%s]" (upcase text) text))
@@ -314,7 +316,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-copy ()
   (interactive)
   (let ((buffer (get-buffer-create (format org-grep-hits-buffer-name-copy-format
-                                           org-grep-last-regexp))))
+                                           org-grep-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
     (goto-char (point-min))
@@ -374,7 +376,8 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-recompute ()
   (interactive)
-  (when org-grep-last-regexp
-    (org-grep org-grep-last-regexp org-grep-last-full)))
+  (when org-grep-regexp
+    (let ((case-fold-search org-grep-case-fold-search))
+      (org-grep org-grep-regexp org-grep-full))))
 
 ;;; org-grep.el ends here
