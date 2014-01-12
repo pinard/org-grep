@@ -13,11 +13,12 @@ system.  Otherwise, one needs compatible *find* and *grep* tools, and a
 shell able to properly decipher the arguments and establish a pipe.
 
 To install *org-grep*, just copy =org-grep.el= somewhere Emacs may find
-it.  Optionally, assign some key binding to trigger the tool.  For
+it.  Optionally, assign some key bindings to trigger the tool.  For
 one, I added these lines to my =~/.emacs= file:
 
   #+BEGIN_SRC elisp
     (autoload 'org-grep "org-grep" nil t)
+    (define-key org-mode-map "\C-cng" 'org-grep-full)
     (define-key org-mode-map "\C-cog" 'org-grep)
   #+END_SRC
 
@@ -68,46 +69,53 @@ for altering its behavior.  These variables are:
        holding a shell command to provide some /grep-like/ output.  See
        at the end of this section for an example.
   - org-grep-gnus-directory :: This string names the directory holding
-       all Gnus mail files.  The value is only used when a prefix
-       argument is given to the *org-grep* command, or when a second
-       argument *t* is given to the function.  The feature is not used
-       if the value is *nil*, or if the directory does not exist.  A
-       common value is =~/Mail=.  When the feature is used, links from
-       the hits buffer open whole messages, yet without positioning
-       the cursor on the precise hit line.  The
-       *org-grep-extra-shell-commands* mechanics could be used instead
-       to get precise positioning, and more speed as well, but without
-       the comfort of a proper Emacs mode.
+       all Gnus mail files.  The value is only used with the
+       *org-grep-full* command.  The feature is not used if the the
+       directory does not exist.  A common value is =~/Mail=.  When the
+       feature is used, links from the hits buffer open whole
+       messages, yet without positioning the cursor on the precise hit
+       line.  The *org-grep-extra-shell-commands* mechanics could be
+       used instead to get precise positioning, and more speed as
+       well, but without the comfort of a proper Emacs mode.
+  - org-grep-grep-options :: This string provides options for the *grep*
+       command, and defaults to the =-i= string.  That value may be
+       overriden interactively by calling *org-grep* with a prefix
+       argument.  Note that if the user configured functions providing
+       shell commands, such functions should also insert the value of
+       this variable appropriately in the code they generate.
   - org-grep-rmail-shell-commands :: This variable works similarly to
        the *org-grep-extra-shell-commands* variable, except that all
        searched files should then be Unix mailboxes.  The value is
-       only used when a prefix argument is given to the *org-grep*
-       command, or when a second argument *t* is given to the function.
-       Limitations about links and positioning also apply, as
-       explained in the description of the *org-grep-gnus-directory*
-       variable.
-
-*org-grep* complies with the Emacs variable *case-fold-search*, as set in
-the buffer which is current when the command is launched.  The value
-is then copied into *org-grep-case-fold-search*: user functions
-providing shell commands should consult that copy, and not
-*case-fold-search* directly.
+       only used with the *org-grep-full* command.  Limitations about
+       links and positioning also apply, as explained in the
+       description of the *org-grep-gnus-directory* variable.
 
 ** Usage
 
-To use this tool, either call =M-x org-grep= or the keybinding put aside
-for it, and reply to the prompt with a regular expression to search
-for.  Happily enough, Emacs and the *grep* command use rather similar
-syntax for regular expressions.
+To use this tool, call =M-x org-grep= or the keybinding put aside for
+it, and reply to the prompt with a regular expression to search for.
+Happily enough, Emacs and the *grep* command use rather similar syntax
+for regular expressions.  Be well aware that all currently opened
+files in Emacs are automatically saved to disk before that command
+gets executed.
 
-Be well aware that all currently opened files in Emacs are
-automatically saved to disk before that command gets executed.
+If the command is given an prefix argument (that is, if *C-u* is given
+immediately before the command), the user may interactively edit the
+*grep* options.  If the user did not configure *org-grep-grep-options*
+otherwise, the default option is =-i=, which ignores case differences
+while searching.  So, if you want to search strictly, use a prefix
+argument and erase that =-i=.
 
-This will create an Org buffer with the found lines, each preceded by
-the base name of the file containing the line, and the line number
+There is another command =M-x org-grep-full= which also search Unix
+mailboxes and Gnus mailgroups, given the user configured the
+appropriate variables.  The command is separate from =M-x org-grep=
+command, giving more control to users who do not like the slowdown.
+
+Both commands create an Org buffer with the found lines, each preceded
+by the base name of the file containing the line, and the line number
 within that file.  The buffer is read-only, but standard Org commands
 which do not modify the buffer apply, including of course those able
-to follow links.  A few extra commands are also available:
+to follow links.  A few extra key bindings are also available:
 
   - C-c C-c :: For the search hit as identified by the position of the
                cursor, open the corresponding original file (unless it
@@ -151,7 +159,7 @@ control in the repository located at =~/share/bin/=.  One could use:
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))
 
   (defun fp-org-grep-in-share-bin (regexp)
-    (concat "(cd ~/share/bin; git grep" (if org-grep-case-fold-search " -i" "")
+    (concat "(cd ~/share/bin; git grep " org-grep-grep-options
             " -n " (shell-quote-argument regexp)
             " | sed 's,^,~/share/bin/,')"))
 #+END_SRC
@@ -196,9 +204,9 @@ which I can easily live with.  Here are those I'm aware of:
   slightly alleviates the problem, this does not work for letters
   outside ASCII.
 
-- If *case-fold-search* is *t* (not *nil* to be precise), *org-grep* calls
-  *grep* with the *-i* flag, which may slow it down considerably.  The
-  difference is very noticeable for me when reading Gnus mailgroups.
+- By default, *org-grep* calls *grep* with the *-i* flag, which may slow it
+  down considerably.  The difference is very noticeable for me when
+  using *org-grep-full*; I then use a prefix argument to remove that *-i*.
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.

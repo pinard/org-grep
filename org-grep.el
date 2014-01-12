@@ -51,12 +51,14 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-gnus-directory nil
   "Directory holding Gnus mail files.  Often ~/Mail.")
 
+(defvar org-grep-grep-options "-i"
+  "String containing default grep options.")
+
 (defvar org-grep-rmail-shell-commands nil
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
 
-(defvar org-grep-case-fold-search nil)
-(defvar org-grep-full nil)
+(defvar org-grep-full-flag nil)
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-hits-buffer-name " *Org grep hits*")
 (defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
@@ -64,13 +66,38 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-mail-buffer-file nil)
 (defvar org-grep-mail-buffer-name " *Org grep mail*")
 (defvar org-grep-regexp nil)
+
+;;; Main driver functions.
 
-(defun org-grep (regexp &optional full)
+(defun org-grep (regexp &optional prefix)
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a string or a regexp to grep: "))
+           (read-string "Enter a regexp to grep: "))
          current-prefix-arg))
+  (if (and prefix (called-interactively-p 'any))
+      (let ((org-grep-grep-options
+             (read-string "Grep options: "
+                          (and (not (string-equal org-grep-grep-options ""))
+                               (concat org-grep-grep-options " ")))))
+        (org-grep-internal regexp nil))
+    (org-grep-internal regexp nil)))
+
+(defun org-grep-full (regexp &optional prefix)
+  (interactive
+   (list (if (use-region-p)
+             (buffer-substring (region-beginning) (region-end))
+           (read-string "Enter a regexp to grep: "))
+         current-prefix-arg))
+  (if (and prefix (called-interactively-p 'any))
+      (let ((org-grep-grep-options
+             (read-string "Grep options: "
+                          (and (not (string-equal org-grep-grep-options ""))
+                               (concat org-grep-grep-options " ")))))
+        (org-grep-internal regexp t))
+    (org-grep-internal regexp t)))
+
+(defun org-grep-internal (regexp full)
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
   ;; Collect information.  Methods should prefix each line with
@@ -78,7 +105,6 @@ Each of such function is given REGEXP as an argument.")
   ;; sorting key before the NUL is the concatenation of some
   ;; alphabetical string related to the file name, followed by a line
   ;; number justified to the right into 5 columns and space filled.
-  (setq org-grep-case-fold-search case-fold-search)
   (pop-to-buffer org-grep-hits-buffer-name)
   (fundamental-mode)
   (setq buffer-read-only nil)
@@ -142,9 +168,11 @@ Each of such function is given REGEXP as an argument.")
       (error "None found!"))
     ;; Activate Org mode on the results.
     (goto-char (point-min))
-    (insert (format "* Grep found %d occurrences of %s (/%s case/)\n\n"
-                    counter regexp
-                    (if org-grep-case-fold-search "folded" "strict")))
+    (insert (format "* =grep%s %s= found %d occurrences.\n\n"
+                    (if (string-equal org-grep-grep-options "")
+                        ""
+                      (concat " " org-grep-grep-options))
+                    (shell-quote-argument regexp) counter))
     (org-mode)
     (goto-char (point-min))
     (org-show-subtree)
@@ -155,7 +183,7 @@ Each of such function is given REGEXP as an argument.")
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
     (setq org-grep-regexp regexp
-          org-grep-full full)
+          org-grep-full-flag full)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -175,6 +203,8 @@ Each of such function is given REGEXP as an argument.")
       (setq org-grep-mail-buffer nil
             org-grep-mail-buffer-file nil))
     counter))
+
+;;; Shell code generation.
 
 (defun org-grep-from-org (regexp)
   ;; Execute shell command.
@@ -218,7 +248,7 @@ Each of such function is given REGEXP as an argument.")
             " '\\(^\\|/\\)[#.]\\|~$\\|\\.mrk$\\|\\.nov$\\|\\.overview$'"
             " | grep -v"
             " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
-            " | xargs grep" (if org-grep-case-fold-search " -i" "")
+            " | xargs grep " org-grep-grep-options
             " -n " (shell-quote-argument regexp))))
       (shell-command command t))
     ;; Prefix found lines.
@@ -267,8 +297,10 @@ Each of such function is given REGEXP as an argument.")
                         (mapcar 'regexp-quote org-grep-extensions)
                         "\\|")
                        "\\)'"))
-          " -print0 | xargs -0 grep" (if org-grep-case-fold-search " -i" "")
+          " -print0 | xargs -0 grep " org-grep-grep-options
           " -n " (shell-quote-argument regexp)))
+
+;;; Miscellaneous service functions.
 
 (defun org-grep-message-ref (file line gnus-directory)
   (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
@@ -308,12 +340,14 @@ Each of such function is given REGEXP as an argument.")
   ;; Stolen from hi-lock-process-phrase.
   ;; FIXME: ASCII only.  Sad that hi-lock ignores case-fold-search!
   ;; Also, hi-lock-face-phrase-buffer does not have an unface counterpart.
-  (if org-grep-case-fold-search
+  (if (string-match "\\b-[A-Za-z]*i" org-grep-grep-options)
       (replace-regexp-in-string
        "\\<[a-z]"
        (lambda (text) (format "[%s%s]" (upcase text) text))
        regexp)
     regexp))
+
+;;; Additional commands for an Org grep hits buffer.
 
 (defun org-grep-copy ()
   (interactive)
@@ -379,7 +413,6 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-recompute ()
   (interactive)
   (when org-grep-regexp
-    (let ((case-fold-search org-grep-case-fold-search))
-      (org-grep org-grep-regexp org-grep-full))))
+    (org-grep-internal org-grep-regexp org-grep-full-flag)))
 
 ;;; org-grep.el ends here
