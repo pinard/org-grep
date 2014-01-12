@@ -163,9 +163,6 @@ Each of such function is given REGEXP as an argument.")
             (goto-char resume-point))))
       (forward-line 1)
       (setq counter (1+ counter)))
-    (when (zerop counter)
-      (kill-buffer)
-      (error "None found!"))
     ;; Activate Org mode on the results.
     (goto-char (point-min))
     (insert (format "* =grep%s %s= found %d occurrences.\n\n"
