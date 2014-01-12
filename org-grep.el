@@ -58,14 +58,15 @@ Each of such function is given REGEXP as an argument.")
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
 
-(defvar org-grep-full-flag nil)
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-hits-buffer-name " *Org grep hits*")
 (defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
 (defvar org-grep-mail-buffer-name " *Org grep mail*")
-(defvar org-grep-regexp nil)
+(defvar org-grep-redo-full nil)
+(defvar org-grep-redo-options nil)
+(defvar org-grep-redo-regexp nil)
 
 ;;; Main driver functions.
 
@@ -174,13 +175,14 @@ Each of such function is given REGEXP as an argument.")
     (goto-char (point-min))
     (org-show-subtree)
     ;; Highlight the search string and each ellipsis.
-    (when org-grep-regexp
-      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-regexp))
+    (when org-grep-redo-regexp
+      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
       (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
-    (setq org-grep-regexp regexp
-          org-grep-full-flag full)
+    (setq org-grep-redo-full full
+          org-grep-redo-options org-grep-grep-options
+          org-grep-redo-regexp regexp)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -188,7 +190,7 @@ Each of such function is given REGEXP as an argument.")
     (local-set-key "\C-x`" 'org-grep-next-jump)
     (local-set-key "." 'org-grep-current)
     (local-set-key "c" 'org-grep-copy)
-    (local-set-key "g" 'org-grep-recompute)
+    (local-set-key "g" 'org-grep-redo)
     (local-set-key "n" 'org-grep-next)
     (local-set-key "p" 'org-grep-previous)
     (local-set-key "q" 'org-grep-quit)
@@ -348,8 +350,9 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-copy ()
   (interactive)
-  (let ((buffer (get-buffer-create (format org-grep-hits-buffer-name-copy-format
-                                           org-grep-regexp))))
+  (let ((buffer (get-buffer-create
+                 (format org-grep-hits-buffer-name-copy-format
+                         org-grep-redo-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
     (goto-char (point-min))
@@ -407,9 +410,10 @@ Each of such function is given REGEXP as an argument.")
   (interactive)
   (kill-buffer))
 
-(defun org-grep-recompute ()
+(defun org-grep-redo ()
   (interactive)
-  (when org-grep-regexp
-    (org-grep-internal org-grep-regexp org-grep-full-flag)))
+  (when org-grep-redo-regexp
+    (let ((org-grep-grep-options org-grep-redo-options))
+      (org-grep-internal org-grep-redo-regexp org-grep-redo-full))))
 
 ;;; org-grep.el ends here
