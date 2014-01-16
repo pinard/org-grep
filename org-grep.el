@@ -58,6 +58,16 @@ Each of such function is given REGEXP as an argument.")
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
 
+(defface org-grep-match-face
+  '((((background dark)) (:background "lavender" :foreground "black"))
+    (t (:background "lavender")))
+  "Face for each org-grep match.")
+
+(defface org-grep-ellipsis-face
+  '((((background dark)) (:background "pink" :foreground "black"))
+    (t (:background "pink")))
+  "Face for each org-grep ellipsis.")
+
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-hits-buffer-name " *Org grep hits*")
 (defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
@@ -178,8 +188,10 @@ Each of such function is given REGEXP as an argument.")
     (when org-grep-redo-regexp
       (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
       (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
-    (hi-lock-face-buffer (org-grep-hi-lock-helper regexp) 'hi-yellow)
-    (hi-lock-face-buffer (regexp-quote org-grep-ellipsis) 'hi-blue)
+    (hi-lock-face-buffer (org-grep-hi-lock-helper regexp)
+                         'org-grep-match-face)
+    (hi-lock-face-buffer (regexp-quote org-grep-ellipsis)
+                         'org-grep-ellipsis-face)
     (setq org-grep-redo-full full
           org-grep-redo-options org-grep-grep-options
           org-grep-redo-regexp regexp)
