@@ -69,7 +69,7 @@ Each of such function is given REGEXP as an argument.")
   "Face for each org-grep ellipsis.")
 
 (defvar org-grep-hit-regexp "^- ")
-(defvar org-grep-hits-buffer-name " *Org grep hits*")
+(defvar org-grep-hits-buffer-name "*Org grep hits*")
 (defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
@@ -117,6 +117,7 @@ Each of such function is given REGEXP as an argument.")
   ;; alphabetical string related to the file name, followed by a line
   ;; number justified to the right into 5 columns and space filled.
   (pop-to-buffer org-grep-hits-buffer-name)
+  (buffer-disable-undo)
   (fundamental-mode)
   (setq buffer-read-only nil)
   (erase-buffer)
