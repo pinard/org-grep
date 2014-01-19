@@ -49,7 +49,7 @@
 Each of such function is given REGEXP as an argument.")
 
 (defvar org-grep-gnus-directory nil
-  "Directory holding Gnus mail files.  Often ~/Mail.")
+  "Directory holding Gnus mail files.  Often \"~/Mail\".")
 
 (defvar org-grep-grep-options "-i"
   "String containing default grep options.")
@@ -98,7 +98,7 @@ Each of such function is given REGEXP as an argument.")
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a regexp to grep: "))
+           (read-string "Enter a regexp to fully grep: "))
          current-prefix-arg))
   (if (and prefix (called-interactively-p 'any))
       (let ((org-grep-grep-options
@@ -232,7 +232,7 @@ Each of such function is given REGEXP as an argument.")
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
            (directory (file-name-directory file))
-           (base (file-name-sans-extension (file-name-nondirectory file))))
+           (base (file-name-base file)))
       (replace-match (concat (downcase base) " " (format "%5d" line)
                              "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
       ;; Moderately try to resolve relative links.
@@ -291,7 +291,7 @@ Each of such function is given REGEXP as an argument.")
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
-           (base (file-name-sans-extension (file-name-nondirectory file)))
+           (base (file-name-base file))
            (ref (save-match-data (org-grep-message-ref file line nil))))
       (replace-match
        (concat (downcase base) " " (format "%5d" line) "\0- [[" ref
