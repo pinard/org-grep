@@ -111,11 +111,11 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-internal (regexp full)
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
-  ;; Collect information.  Methods should prefix each line with
-  ;; sorting keys, a NUL, "- ", clickable information, then " :: ".  A
-  ;; sorting key before the NUL is the concatenation of some
-  ;; alphabetical string related to the file name, followed by a line
-  ;; number justified to the right into 5 columns and space filled.
+  ;; Collect information.  Methods prefix each line with: some string
+  ;; (likely the lower-cased base of the file name), a first NUL, a
+  ;; disambiguing key (likely the full file name), a second NUL, a
+  ;; line number justified to the right into 5 columns and space
+  ;; filled, a third NUL, "- ", clickable information, then " :: ".
   (pop-to-buffer org-grep-hits-buffer-name)
   (buffer-disable-undo)
   (fundamental-mode)
@@ -126,25 +126,50 @@ Each of such function is given REGEXP as an argument.")
   (when full
     (org-grep-from-rmail regexp)
     (org-grep-from-gnus regexp))
-  ;; Sort lines, remove sorting keys and the NUL.
+  ;; Sort lines, then attempt some serious cleanup on them.
   (sort-lines nil (point-min) (point-max))
   (let ((counter 0)
+        alist duplicates key name pair current-name
         ellipsis-length distance-trigger half-maximum
         line-start line-limit start-context end-context
         resume-point end-delete delete-size shrink-delta)
+    ;; Do a preliminary pass to discover duplicate keys.
+    (goto-char (point-min))
+    (while (not (eobp))
+      (when (looking-at "\\([^\0]*\\)\0\\([^\0]*\\)\0")
+        (setq key (match-string 1)
+              name (match-string 2)
+              pair (assoc key alist))
+        (cond ((not pair) (setq alist (cons (cons key name) alist)))
+              ((string-equal (cdr pair) name))
+              ((member (car pair) duplicates))
+              (t (setq duplicates (cons key duplicates)))))
+      (forward-line 1))
     (when (and org-grep-ellipsis org-grep-maximum-context-size)
       (setq ellipsis-length (length org-grep-ellipsis)
             distance-trigger (+ org-grep-maximum-context-size ellipsis-length)
             half-maximum (/ org-grep-maximum-context-size 2)))
     (goto-char (point-min))
-    (while (re-search-forward "^[^\0]+\0" nil t)
-      ;; Found one prefixed line, process it.
+    ;; Find and process all prefixed lines.
+    (while (re-search-forward "^\\([^\0]*\\)\0\\([^\0]*\\)\0[^\0]*\0" nil t)
+      ;; Remove sorting information
+      (setq key (match-string 1)
+            name (match-string 2))
       (replace-match "")
       (setq line-end (line-end-position))
       (when (search-forward " :: " line-end t)
+        ;; Disambiguate the reference if needed.
+        (when (and (member key duplicates)
+                   (not (string-equal name current-name)))
+          (setq current-name name)
+          (backward-char 4)
+          (insert " " (abbreviate-file-name name))
+          (forward-char 4)
+          (setq line-end (line-end-position)))
         ;; Remove extra whitespace.
         (setq line-start (point))
-        (while (re-search-forward "[ \f\t\b][ \f\t\b]+" line-end t)
+        (while (re-search-forward " [ \f\t\b]+\\|[\f\t\b][ \f\t\b]*"
+                                  line-end t)
           (replace-match "  ")
           (setq line-end (line-end-position)))
         ;; Possibly elide big contexts.
@@ -233,8 +258,9 @@ Each of such function is given REGEXP as an argument.")
            (line (string-to-number (match-string 2)))
            (directory (file-name-directory file))
            (base (file-name-base file)))
-      (replace-match (concat (downcase base) " " (format "%5d" line)
-                             "\0- [[file:\\1::\\2][" base ":]]\\2 :: "))
+      (replace-match
+       (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
+               "- [[file:\\1::\\2][" base ":]]\\2 :: "))
       ;; Moderately try to resolve relative links.
       (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
                                 (line-end-position) t)
@@ -275,8 +301,8 @@ Each of such function is given REGEXP as an argument.")
             (setq base (file-name-nondirectory
                         (substring (file-name-directory file) 0 -1)))))
         (replace-match
-         (concat (downcase base) " " (format "%5d" line) "\0- [[" ref
-                 "][" base ":]]" (number-to-string line) " :: "))
+         (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
+                 "- [[" ref "][" base ":]]" (number-to-string line) " :: "))
         (forward-line)))))
 
 (defun org-grep-from-rmail (regexp)
@@ -294,8 +320,8 @@ Each of such function is given REGEXP as an argument.")
            (base (file-name-base file))
            (ref (save-match-data (org-grep-message-ref file line nil))))
       (replace-match
-       (concat (downcase base) " " (format "%5d" line) "\0- [[" ref
-               "][" base ":]]" (number-to-string line) " :: "))
+       (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
+               "- [[" ref "][" base ":]]" (number-to-string line) " :: "))
       (forward-line))))
 
 (defun org-grep-from-org-shell-command (regexp)
