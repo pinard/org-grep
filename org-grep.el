@@ -1,6 +1,6 @@
 ;;; org-grep.el --- Kind of M-x rgrep adapted for Org mode.
 
-;; Copyright © 2013 Progiciels Bourbeau-Pinard inc.
+;; Copyright © 2013, 2014 Progiciels Bourbeau-Pinard inc.
 
 ;; Author: François Pinard <pinard@iro.umontreal.ca>
 ;; Maintainer: François Pinard <pinard@iro.umontreal.ca>
@@ -43,6 +43,9 @@
 
 (defvar org-grep-extensions '(".org")
   "List of extensions for searchable files.")
+
+(defvar org-grep-hide-extension nil
+  "Ignore extension while sorting and displaying.")
 
 (defvar org-grep-extra-shell-commands nil
   "List of functions providing extra shell commands for grepping.
@@ -163,7 +166,9 @@ Each of such function is given REGEXP as an argument.")
                    (not (string-equal name current-name)))
           (setq current-name name)
           (backward-char 4)
-          (insert " " (abbreviate-file-name name))
+          (insert " " (abbreviate-file-name (if org-grep-hide-extension
+                                                name
+                                              (file-name-directory name))))
           (forward-char 4)
           (setq line-end (line-end-position)))
         ;; Remove extra whitespace.
@@ -257,7 +262,9 @@ Each of such function is given REGEXP as an argument.")
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
            (directory (file-name-directory file))
-           (base (file-name-base file)))
+           (base (if org-grep-hide-extension
+                     (file-name-base file)
+                   (file-name-nondirectory file))))
       (replace-match
        (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
                "- [[file:\\1::\\2][" base ":]]\\2 :: "))
@@ -317,7 +324,9 @@ Each of such function is given REGEXP as an argument.")
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
-           (base (file-name-base file))
+           (base (if org-grep-hide-extension
+                     (file-name-base file)
+                   (file-name-nondirectory file)))
            (ref (save-match-data (org-grep-message-ref file line nil))))
       (replace-match
        (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"

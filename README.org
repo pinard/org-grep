@@ -68,6 +68,14 @@ for altering its behavior.  These variables are:
        regular expression given to *org-grep*, and returns a string
        holding a shell command to provide some /grep-like/ output.  See
        at the end of this section for an example.
+  - org-grep-hide-extension :: If set to *t*, the displayed key on each
+       line of the hits buffer it is shown without the extension when
+       it represents the base name of a file.  This may have a slight
+       effect on the sort order.  This also has an effect on the
+       disambiguation information which gets added whenenever the same
+       key is used to represent more than one file: that information
+       is then the full file name instead of its containing directory.
+       By default, this option is *nil*.
   - org-grep-gnus-directory :: This string names the directory holding
        all Gnus mail files.  The value is only used with the
        *org-grep-full* command.  The feature is not used if the the
