@@ -31,9 +31,9 @@ a few Emacs variables may be set prior to, or after loading *org-grep,
 for altering its behavior.  These variables are:
 
   - org-grep-directories :: This is a list of directories which the
-       *org-grep* command recursively searches.  When *nil*, which is the
-       default, the command searches within the hierarchy identified
-       by the Org standard *org-directory* variable.
+       *org-grep* command recursively searches.  The default is to
+       search only within the hierarchy identified by the Org standard
+       *org-directory* variable.  The user may specify *nil* to defeat Org searches, and then rely on *org-grep-extra-shell-commands*.
   - org-grep-ellipsis :: This string is used to mark, in the hits
        buffer, context fragments which have been deleted.  The default
        is an Unicode ellipsis with a space on each side ( … ).  You

@@ -32,8 +32,9 @@
 
 ;;; Code:
 
-(defvar org-grep-directories nil
-  "Directories to search, or ORG-DIRECTORY if nil.")
+(defvar org-grep-directories (and (boundp 'org-directory)
+                                  (list org-directory))
+  "List of directories to search, default is org-directory only.")
 
 (defvar org-grep-ellipsis " … "
   "Ellipsis text to replace any removed context, nil means no elision.")
@@ -334,18 +335,20 @@ Each of such function is given REGEXP as an argument.")
       (forward-line))))
 
 (defun org-grep-from-org-shell-command (regexp)
-  (concat "find "
-          (if org-grep-directories
-              (org-grep-join org-grep-directories " ")
-            org-directory)
-          (and org-grep-extensions
-               (concat " -regex '.*\\("
-                       (org-grep-join
-                        (mapcar 'regexp-quote org-grep-extensions)
-                        "\\|")
-                       "\\)'"))
-          " -print0 | xargs -0 grep " org-grep-grep-options
-          " -n " (shell-quote-argument regexp)))
+  (if org-grep-directories
+      (concat "find "
+              (if org-grep-directories
+                  (org-grep-join org-grep-directories " ")
+                org-directory)
+              (and org-grep-extensions
+                   (concat " -regex '.*\\("
+                           (org-grep-join
+                            (mapcar 'regexp-quote org-grep-extensions)
+                            "\\|")
+                           "\\)'"))
+              " -print0 | xargs -0 grep " org-grep-grep-options
+              " -n " (shell-quote-argument regexp))
+    ":"))
 
 ;;; Miscellaneous service functions.
 
