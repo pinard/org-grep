@@ -167,9 +167,11 @@ Each of such function is given REGEXP as an argument.")
                    (not (string-equal name current-name)))
           (setq current-name name)
           (backward-char 4)
-          (insert " " (abbreviate-file-name (if org-grep-hide-extension
-                                                name
-                                              (file-name-directory name))))
+          (insert " ="
+                  (abbreviate-file-name (if org-grep-hide-extension
+                                            name
+                                          (file-name-directory name)))
+                  "=")
           (forward-char 4)
           (setq line-end (line-end-position)))
         ;; Remove extra whitespace.
