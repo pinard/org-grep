@@ -40,14 +40,8 @@
 (defvar org-grep-ellipsis " … "
   "Ellipsis text to replace any removed context, nil means no elision.")
 
-(defvar org-grep-maximum-context-size 200
-  "Maximum size of a context chunk within a hit line, nil means no elision.")
-
 (defvar org-grep-extensions '(".org")
   "List of extensions for searchable files.")
-
-(defvar org-grep-hide-extension nil
-  "Ignore extension while sorting and displaying.")
 
 (defvar org-grep-extra-shell-commands nil
   "List of functions providing extra shell commands for grepping.
@@ -58,6 +52,12 @@ Each of such function is given REGEXP as an argument.")
 
 (defvar org-grep-grep-options "-i"
   "String containing default grep options.")
+
+(defvar org-grep-hide-extension nil
+  "Ignore extension while sorting and displaying.")
+
+(defvar org-grep-maximum-context-size 200
+  "Maximum size of a context chunk within a hit line, nil means no elision.")
 
 (defvar org-grep-rmail-shell-commands nil
   "List of functions providing shell commands to grep mailboxes.
