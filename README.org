@@ -159,9 +159,27 @@ In all Org buffers, command *C-x `* uses the contents of an existing
 does not exist, or if there is no following hit, the standard Emacs
 action is used instead: usually moving to the next compilation error.
 
-Here is an example of using *org-grep-extra-shell-commands*.  Let's
-assume that one wants to /also/ search all non-Org files under Git
-control in the repository located at =~/share/bin/=.  One could use:
+Here is an example of *org-grep-extra-shell-commands*.  Let's assume
+that one want to /also/ search the file system for matching file names.
+The main trick is to fake that the match occurred on first line of
+found lines.  The context is left empty, *org-grep* then reacts to this
+little kludge by showing more information about the full file name:
+
+#+BEGIN_SRC elisp
+  (setq org-grep-extra-shell-commands '(fp-org-grep-in-locate))
+
+  (defun fp-org-grep-in-locate (regexp)
+    (concat "locate " org-grep-grep-options
+            " --regexp " (shell-quote-argument regexp)
+            " | sed 's,$,:1:,'"))
+#+END_SRC
+
+This other example for *org-grep-extra-shell-commands* takes advantage
+of Git search speed, when files are under the control of a Git
+repository.  The main trick here is to prepend the directory
+information to the result, as this information would otherwise be lost
+after the directory changed.  Given the repository is located at
+=~/share/bin/=, one could use:
 
 #+BEGIN_SRC elisp
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))

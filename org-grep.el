@@ -163,18 +163,27 @@ Each of such function is given REGEXP as an argument.")
       (replace-match "")
       (setq line-end (line-end-position))
       (when (search-forward " :: " line-end t)
-        ;; Disambiguate the reference if needed.
-        (when (and (member key duplicates)
-                   (not (string-equal name current-name)))
-          (setq current-name name)
-          (backward-char 4)
-          (insert " ="
-                  (abbreviate-file-name (if org-grep-hide-extension
-                                            name
-                                          (file-name-directory name)))
-                  "=")
-          (forward-char 4)
-          (setq line-end (line-end-position)))
+        ;; Give more information on the file name if this is sound.
+        (cond ((= (following-char) ?\n)
+               ;; The context would be otherwise empty.
+               (insert "="
+                       (abbreviate-file-name (if org-grep-hide-extension
+                                                 name
+                                               (file-name-directory name)))
+                       "=")
+               (setq line-end (line-end-position)))
+              ((and (member key duplicates)
+                    (not (string-equal name current-name)))
+               ;; The reference is ambiguous.
+               (setq current-name name)
+               (backward-char 4)
+               (insert " ="
+                       (abbreviate-file-name (if org-grep-hide-extension
+                                                 name
+                                               (file-name-directory name)))
+                       "=")
+               (forward-char 4)
+               (setq line-end (line-end-position))))
         ;; Remove extra whitespace.
         (setq line-start (point))
         (while (re-search-forward " [ \f\t\b]+\\|[\f\t\b][ \f\t\b]*"
