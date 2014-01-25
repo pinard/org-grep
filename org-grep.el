@@ -32,8 +32,9 @@
 
 ;;; Code:
 
-(defvar org-grep-directories (and (boundp 'org-directory)
-                                  (list org-directory))
+(require 'org)
+
+(defvar org-grep-directories (list org-directory)
   "List of directories to search, default is org-directory only.")
 
 (defvar org-grep-ellipsis " … "
