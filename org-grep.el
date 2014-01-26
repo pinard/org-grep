@@ -59,6 +59,9 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-maximum-context-size 200
   "Maximum size of a context chunk within a hit line, nil means no elision.")
 
+(defvar org-grep-maximum-hits 2500
+  "Maximum number of hits, nil means no limit.")
+
 (defvar org-grep-rmail-shell-commands nil
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
@@ -127,17 +130,28 @@ Each of such function is given REGEXP as an argument.")
   (setq buffer-read-only nil)
   (erase-buffer)
   (save-some-buffers t)
+  (message "Finding occurrences...")
   (org-grep-from-org regexp)
   (when full
     (org-grep-from-rmail regexp)
     (org-grep-from-gnus regexp))
   ;; Sort lines, then attempt some serious cleanup on them.
   (sort-lines nil (point-min) (point-max))
-  (let ((counter 0)
-        alist duplicates key name pair current-name
-        ellipsis-length distance-trigger half-maximum
-        line-start line-limit start-context end-context
-        resume-point end-delete delete-size shrink-delta)
+  (let* ((hit-count (count-lines (point-min) (point-max)))
+         (truncated (and org-grep-maximum-hits
+                         (> hit-count org-grep-maximum-hits)))
+         alist duplicates key name pair current-name
+         ellipsis-length distance-trigger half-maximum
+         line-start line-limit start-context end-context
+         resume-point end-delete delete-size shrink-delta)
+    ;; Truncate the buffer if it contains too many hits.
+    (if (not truncated)
+        (message "Finding occurrences... done (%d found)" hit-count)
+      (message "Finding occurrences... done (showing %d / %d)"
+               org-grep-maximum-hits hit-count)
+      (goto-char (point-min))
+      (forward-line org-grep-maximum-hits)
+      (delete-region (point) (point-max)))
     ;; Do a preliminary pass to discover duplicate keys.
     (goto-char (point-min))
     (while (not (eobp))
@@ -216,15 +230,19 @@ Each of such function is given REGEXP as an argument.")
                 (setq resume-point (- resume-point shrink-delta)
                       line-end (- line-end shrink-delta))))
             (goto-char resume-point))))
-      (forward-line 1)
-      (setq counter (1+ counter)))
+      (forward-line 1))
     ;; Activate Org mode on the results.
     (goto-char (point-min))
-    (insert (format "* =grep%s %s= found %d occurrences.\n\n"
+    (insert (format "* =org-grep%s %s="
                     (if (string-equal org-grep-grep-options "")
                         ""
                       (concat " " org-grep-grep-options))
-                    (shell-quote-argument regexp) counter))
+                    (shell-quote-argument regexp)))
+    (if truncated
+        (insert (format " retained *%d* occurrences out of *%d*."
+                        org-grep-maximum-hits hit-count))
+      (insert (format " found *%d* occurrences." hit-count)))
+    (insert "\n\n")
     (org-mode)
     (goto-char (point-min))
     (org-show-subtree)
@@ -257,7 +275,7 @@ Each of such function is given REGEXP as an argument.")
       (kill-buffer org-grep-mail-buffer)
       (setq org-grep-mail-buffer nil
             org-grep-mail-buffer-file nil))
-    counter))
+    hit-count))
 
 ;;; Shell code generation.
 

@@ -33,7 +33,8 @@ for altering its behavior.  These variables are:
   - org-grep-directories :: This is a list of directories which the
        *org-grep* command recursively searches.  The default is to
        search only within the hierarchy identified by the Org standard
-       *org-directory* variable.  The user may specify *nil* to defeat Org searches, and then rely on *org-grep-extra-shell-commands*.
+       *org-directory* variable.  The user may specify *nil* to defeat Org
+       searches, and then rely on *org-grep-extra-shell-commands*.
   - org-grep-ellipsis :: This string is used to mark, in the hits
        buffer, context fragments which have been deleted.  The default
        is an Unicode ellipsis with a space on each side ( … ).  You
@@ -53,6 +54,10 @@ for altering its behavior.  These variables are:
        default), the middle part of the context fragment is removed
        and replaced by the *org-grep-ellipsis* string.  However, if this
        variable is *nil*, context is always shown in full.
+  - org-grep-maximum-hits :: This integer number sets a limit on the
+       number of displayed hits, as very long Org files may take
+       forever to completely display.  The default value is 2500.  The
+       value *nil* removes the limit and all hits are then shown.
   - org-grep-extensions :: This is a list of file extensions to retain
        for the search, including the leading period.  The default is a
        list containing the =.org= string as its sole member.  If set to
