@@ -174,8 +174,8 @@ little kludge by showing more information about the full file name:
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-locate))
 
   (defun fp-org-grep-in-locate (regexp)
-    (concat "locate " org-grep-grep-options
-            " --regexp " (shell-quote-argument regexp)
+    (concat "locate -e " org-grep-grep-options
+            " -r " (shell-quote-argument regexp)
             " | sed 's,$,:1:,'"))
 #+END_SRC
 
