@@ -76,12 +76,13 @@ Each of such function is given REGEXP as an argument.")
     (t (:background "pink")))
   "Face for each org-grep ellipsis.")
 
+(defvar org-grep-buffer-name-format "*Org Grep — %s*")
+(defvar org-grep-hits-buffer-name "*Org Grep hits*")
+(defvar org-grep-mail-buffer-name "*Org Grep mail*")
+
 (defvar org-grep-hit-regexp "^- ")
-(defvar org-grep-hits-buffer-name "*Org grep hits*")
-(defvar org-grep-hits-buffer-name-copy-format "*Org grep %s*")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
-(defvar org-grep-mail-buffer-name " *Org grep mail*")
 (defvar org-grep-redo-full nil)
 (defvar org-grep-redo-options nil)
 (defvar org-grep-redo-regexp nil)
@@ -140,7 +141,7 @@ Each of such function is given REGEXP as an argument.")
   (let* ((hit-count (count-lines (point-min) (point-max)))
          (truncated (and org-grep-maximum-hits
                          (> hit-count org-grep-maximum-hits)))
-         alist duplicates key name pair current-name
+         info duplicates key name pair current-name
          ellipsis-length distance-trigger half-maximum
          line-start line-limit start-context end-context
          resume-point end-delete delete-size shrink-delta)
@@ -158,8 +159,8 @@ Each of such function is given REGEXP as an argument.")
       (when (looking-at "\\([^\0]*\\)\0\\([^\0]*\\)\0")
         (setq key (match-string 1)
               name (match-string 2)
-              pair (assoc key alist))
-        (cond ((not pair) (setq alist (cons (cons key name) alist)))
+              pair (assoc key info))
+        (cond ((not pair) (setq info (cons (cons key name) info)))
               ((string-equal (cdr pair) name))
               ((member (car pair) duplicates))
               (t (setq duplicates (cons key duplicates)))))
@@ -268,6 +269,7 @@ Each of such function is given REGEXP as an argument.")
     (local-set-key "n" 'org-grep-next)
     (local-set-key "p" 'org-grep-previous)
     (local-set-key "q" 'org-grep-quit)
+    (local-set-key "s" 'org-grep-structure)
     (when (boundp 'org-mode-map)
       (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
     ;; Clean up.
@@ -427,12 +429,12 @@ Each of such function is given REGEXP as an argument.")
        regexp)
     regexp))
 
-;;; Additional commands for an Org grep hits buffer.
+;;; Additional commands for an Org Grep hits buffer.
 
 (defun org-grep-copy ()
   (interactive)
   (let ((buffer (get-buffer-create
-                 (format org-grep-hits-buffer-name-copy-format
+                 (format org-grep-buffer-name-format
                          org-grep-redo-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
@@ -496,5 +498,91 @@ Each of such function is given REGEXP as an argument.")
   (when org-grep-redo-regexp
     (let ((org-grep-grep-options org-grep-redo-options))
       (org-grep-internal org-grep-redo-regexp org-grep-redo-full))))
+
+(defun org-grep-structure ()
+  (interactive)
+  (let ((buffer (current-buffer))
+        ;; INFO is a recursive structure, made up of a list of ITEMs.
+        ;; Each ITEM is either (START . END) or (SUBDIR INFO).  START
+        ;; and END are integers specifying the limits of a textual
+        ;; region in the original, already sorted hits buffer.  SUBDIR
+        ;; is a string representing the last fragment of a file path.
+        info path seen start)
+    ;; Digest all needed information into INFO.
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward org-grep-hit-regexp nil t)
+        (cond ((looking-at "\\[\\[file:\\([^:]+\\)")
+               (setq seen (match-string-no-properties 1))
+               (unless (and path (string-equal seen path))
+                 (beginning-of-line)
+                 (when path
+                   (setq info (org-grep-structure-add-file
+                               info start (point) path)))
+                 (setq path seen
+                       start (point))
+                 (forward-line 1)))))
+      (when (and start (> (point-max) start))
+        (setq info (org-grep-structure-add-file
+                    info start (point-max) path))))
+    ;; Reorganise all saved information into a new buffer.
+    (switch-to-buffer (get-buffer-create
+                       (format org-grep-buffer-name-format
+                               org-grep-redo-regexp)))
+    (erase-buffer)
+    (insert "#+TITLE: Org Grep structure for =" org-grep-redo-regexp "=\n\n")
+    (org-grep-structure-rebuild info buffer "*" "")
+    ;; Use Org mode over the reconstructed buffer.
+    (org-mode)
+    (goto-char (point-min))
+    (org-overview)
+    (org-content)))
+
+(defun org-grep-structure-add-file (info start end text)
+  (setq text (abbreviate-file-name (file-name-directory text)))
+  (when (= (aref text (1- (length text))) ?/)
+    (setq text (substring text 0 (1- (length text)))))
+  (org-grep-structure-digest
+   info start end
+   (mapcar (lambda (fragment) (concat fragment "/"))
+           (split-string text "/"))))
+
+(defun org-grep-structure-digest (info start end fragments)
+  ;; Modify INFO to register that PATH uses START to END in the hits buffer.
+  (if fragments
+      (let ((pair (assoc (car fragments) info)))
+        (if (not pair)
+            (cons (cons (car fragments)
+                        (org-grep-structure-digest
+                         nil start end (cdr fragments)))
+                  info)
+          (rplacd pair (org-grep-structure-digest
+                        (cdr pair) start end (cdr fragments)))
+          info))
+    (cons (cons start end) info)))
+
+(defun org-grep-structure-rebuild (info buffer prefix path)
+  ;; Collapse hierarchy whenever possible.
+  (while (and (= (length info) 1) (stringp (caar info)))
+    (setq path (concat path (caar info))
+          info (cdar info)))
+  ;; Insert an Org header.
+  (insert prefix " =" path "=  [[file:" path "][(dir)]]\n")
+  ;; Sort INFO to get all (START . END) first, then all (SUBDIR INFO).
+  (setq info (sort info (lambda (a b)
+                          (if (stringp (car a))
+                              (and (stringp (car b))
+                                   (string-lessp (car a) (car b)))
+                            (or (stringp (car b))
+                                (< (car a) (car b)))))))
+  ;; Insert all information under that header.
+  (while info
+    (if (stringp (caar info))
+        ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
+        (org-grep-structure-rebuild (cdar info) buffer (concat prefix "*")
+                                    (concat path (caar info)))
+      ;; We have (START . END).  Insert items from the original hits buffer.
+      (insert-buffer-substring buffer (caar info) (cdar info)))
+    (setq info (cdr info))))
 
 ;;; org-grep.el ends here

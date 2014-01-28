@@ -151,16 +151,27 @@ to follow links.  A few extra key bindings are also available:
          window (but see [[Caveats]] below).
   - g :: Save all modified files to disk, then refresh the search hit
          buffer from the actual contents of the disk files.
-  - c :: Copy the =*Org grep*= buffer into another Emacs buffer whose
-         name depends on the regular expression.  This effectively
-         saves the buffer contents before starting a new search.  The
-         saved copy is a regular Org file with no specially added
-         command.  Also, for convenience, all list items are turned
-         into checklist items.
-  - q :: Quit the =*Org grep*= window, deleting it.
+  - c :: Copy the hits buffer into another Emacs buffer whose name
+         depends on the regular expression.  This effectively saves
+         the buffer contents before starting a new search.  The new
+         buffer is a regular Org file with no specially added command.
+         Also, for convenience, all list items are turned into
+         checklist items.
+  - s :: Restructure the hits buffer into another Emacs buffer whose
+         name depends on the regular expression.  In this new buffer,
+         a hierarchical set of headers represent directories, and all
+         hits are sorted under the appropriate headers.  This is
+         sometimes useful to regroup an overwhelming number of hits
+         under projects, or such things.  The headers are sorted
+         lexicographically.  Also, they get collapsed to avoid deep
+         nesting whenever possible.  The new buffer is a regular Org
+         file with no specially added command.  For convenience, a
+         =(dir)= button is added on the header lines, which normally
+         open Emacs /Dired/ on the directory introduced by that header.
+  - q :: Quit the =*Org Grep*= window, deleting it.
 
 In all Org buffers, command *C-x `* uses the contents of an existing
-=*Org grep*= buffer for moving to the next search hit.  If that buffer
+=*Org Grep*= buffer for moving to the next search hit.  If that buffer
 does not exist, or if there is no following hit, the standard Emacs
 action is used instead: usually moving to the next compilation error.
 
@@ -252,3 +263,7 @@ which I can easily live with.  Here are those I'm aware of:
 - The size of any elided text is reduced so the elision occurs on word
   boundaries.  As a consequence, it may happen that long words prevent
   elision.
+
+- The *s* command to restructure the hits buffer only handles file and
+  directory references, it does not handle mailboxes or mailgroups.
+  This will be likely corrected when the need arises.
