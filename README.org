@@ -1,4 +1,4 @@
-#+TITLE: org-grep — Kind of M-x rgrep adapted for Org mode
+#+TITLE: Org Grep — Kind of M-x rgrep adapted for Org mode
 
 This tool allows for grepping files in a set of Org directories,
 formatting the results as a separate Org buffer.  This buffer is
@@ -12,7 +12,7 @@ This tool has been developed on Linux, and likely requires a Unix-like
 system.  Otherwise, one needs compatible *find* and *grep* tools, and a
 shell able to properly decipher the arguments and establish a pipe.
 
-To install *org-grep*, just copy =org-grep.el= somewhere Emacs may find
+To install Org Grep, just copy =org-grep.el= somewhere Emacs may find
 it.  Optionally, assign some key bindings to trigger the tool.  For
 one, I added these lines to my =~/.emacs= file:
 
@@ -26,15 +26,15 @@ yet of course, one may choose any other key binding.
 
 ** Configuration
 
-*org-grep* may be used immediately, without any configuration.  However,
-a few Emacs variables may be set prior to, or after loading *org-grep,
-for altering its behavior.  These variables are:
+Org Grep may be used immediately, without any configuration.  However,
+a few Emacs variables may be set prior to, or after loading
+=org-grep.el=, for altering its behavior.  These variables are:
 
   - org-grep-directories :: This is a list of directories which the
        *org-grep* command recursively searches.  The default is to
        search only within the hierarchy identified by the Org standard
-       *org-directory* variable.  The user may specify *nil* to defeat Org
-       searches, and then rely on *org-grep-extra-shell-commands*.
+       *org-directory* variable.  The user may specify *nil* to defeat
+       Org searches, and then rely on *org-grep-extra-shell-commands*.
   - org-grep-ellipsis :: This string is used to mark, in the hits
        buffer, context fragments which have been deleted.  The default
        is an Unicode ellipsis with a space on each side ( … ).  You
@@ -67,12 +67,13 @@ for altering its behavior.  These variables are:
        functions provided by the user, meant to further customize
        searching.  Such functions may be used whenever variables
        *org-grep-directories* and *org-grep-extensions* above are not
-       sufficient to describe user needs.  The default is *nil*, meaning
-       that there is no extra searching.  Each element in the list is
-       the symbol name for the function.  Each function receives the
-       regular expression given to *org-grep*, and returns a string
-       holding a shell command to provide some /grep-like/ output.  See
-       at the end of this section for an example.
+       sufficient to describe user needs.  The default is *nil*,
+       meaning that there is no extra searching.  Each element in the
+       list is the symbol name for the function.  Each function
+       receives the regular expression given to the *org-grep*
+       command, and returns a string holding a shell command to
+       provide some /grep-like/ output.  See at the end of this
+       section for an example.
   - org-grep-hide-extension :: If set to *t*, the displayed key on each
        line of the hits buffer it is shown without the extension when
        it represents the base name of a file.  This may have a slight
@@ -90,12 +91,13 @@ for altering its behavior.  These variables are:
        line.  The *org-grep-extra-shell-commands* mechanics could be
        used instead to get precise positioning, and more speed as
        well, but without the comfort of a proper Emacs mode.
-  - org-grep-grep-options :: This string provides options for the *grep*
-       command, and defaults to the =-i= string.  That value may be
-       overriden interactively by calling *org-grep* with a prefix
-       argument.  Note that if the user configured functions providing
-       shell commands, such functions should also insert the value of
-       this variable appropriately in the code they generate.
+  - org-grep-grep-options :: This string provides options for the
+       *grep* command, and defaults to the =-i= string.  That value
+       may be overriden interactively by calling the *org-grep*
+       command with a prefix argument.  Note that if the user
+       configured functions providing shell commands, such functions
+       should also insert the value of this variable appropriately in
+       the code they generate.
   - org-grep-rmail-shell-commands :: This variable works similarly to
        the *org-grep-extra-shell-commands* variable, except that all
        searched files should then be Unix mailboxes.  The value is
@@ -178,7 +180,7 @@ action is used instead: usually moving to the next compilation error.
 Here is an example of *org-grep-extra-shell-commands*.  Let's assume
 that one want to /also/ search the file system for matching file names.
 The main trick is to fake that the match occurred on first line of
-found lines.  The context is left empty, *org-grep* then reacts to this
+found files.  The context is left empty, Org Grep then reacts to this
 little kludge by showing more information about the full file name:
 
 #+BEGIN_SRC elisp
@@ -201,7 +203,7 @@ after the directory changed.  Given the repository is located at
   (setq org-grep-extra-shell-commands '(fp-org-grep-in-share-bin))
 
   (defun fp-org-grep-in-share-bin (regexp)
-    (concat "(cd ~/share/bin; git grep " org-grep-grep-options
+    (concat "(cd ~/share/bin && git grep " org-grep-grep-options
             " -n " (shell-quote-argument regexp)
             " | sed 's,^,~/share/bin/,')"))
 #+END_SRC
@@ -226,7 +228,7 @@ This seems like a cleaner and easier way to proceed.
 
 ** Caveats
 
-*org-grep* is constantly useful to me, yet a few minor problems remain,
+Org Grep is constantly useful to me, yet a few minor problems remain,
 which I can easily live with.  Here are those I'm aware of:
 
 - The cursor does not come back into the resulting buffer, for some
@@ -246,9 +248,10 @@ which I can easily live with.  Here are those I'm aware of:
   slightly alleviates the problem, this does not work for letters
   outside ASCII.
 
-- By default, *org-grep* calls *grep* with the *-i* flag, which may slow it
-  down considerably.  The difference is very noticeable for me when
-  using *org-grep-full*; I then use a prefix argument to remove that *-i*.
+- By default, the *org-grep* command internally calls *grep* with the
+  *-i* flag, which may slow it down considerably.  The difference is
+  very noticeable for me when using *org-grep-full*; I then use a
+  prefix argument to remove that *-i*.
 
 - It would be nice to highlight the search pattern in the original Org
   buffers containing grep hits.
