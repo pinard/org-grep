@@ -89,6 +89,7 @@ Each of such function is given REGEXP as an argument.")
 
 ;;; Main driver functions.
 
+;;;###autoload
 (defun org-grep (regexp &optional prefix)
   (interactive
    (list (if (use-region-p)
