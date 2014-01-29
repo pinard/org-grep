@@ -210,9 +210,8 @@ Each of such function is given REGEXP as an argument.")
                  (insert "="
                          (abbreviate-file-name
                           (if org-grep-hide-extension name directory))
-                         "=")
-                 (insert "   ")
-                 (insert "[[file:" directory "::" base "][dired]]")
+                         "=   [[file:" directory "::" (regexp-quote base)
+                         "][dired]]")
                  (setq line-end (line-end-position))))
               ((and (member key duplicates)
                     (not (string-equal name current-name)))
@@ -553,9 +552,7 @@ Each of such function is given REGEXP as an argument.")
             info (cdar info)))
 
     ;; Insert an Org header.
-    (insert prefix " =" path "=")
-    (insert "   ")
-    (insert "[[file:" path "][dired]]\n")
+    (insert prefix " =" path "=   [[file:" path "][dired]]\n")
 
     ;; Insert all information under that header.
     (mapc (lambda (pair)
