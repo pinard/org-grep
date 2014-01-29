@@ -120,6 +120,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-internal (regexp full)
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
+
   ;; Prepare the hits buffer, removing its previous contents.
   (pop-to-buffer org-grep-hits-buffer-name)
   (buffer-disable-undo)
@@ -129,10 +130,12 @@ Each of such function is given REGEXP as an argument.")
   (when org-grep-redo-regexp
     (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
     (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
+
   ;; Save arguments, in particular for a redo command.
   (setq org-grep-redo-full full
         org-grep-redo-options org-grep-grep-options
         org-grep-redo-regexp regexp)
+
   ;; Collect information.  Methods prefix each line with: some string
   ;; (likely the lower-cased base of the file name), a first NUL, a
   ;; disambiguing key (likely the full file name), a second NUL, a
@@ -144,6 +147,7 @@ Each of such function is given REGEXP as an argument.")
   (when full
     (org-grep-from-rmail regexp)
     (org-grep-from-gnus regexp))
+
   ;; Sort lines, then attempt some serious cleanup on them.
   (sort-lines nil (point-min) (point-max))
   (let* ((hit-count (count-lines (point-min) (point-max)))
@@ -153,6 +157,7 @@ Each of such function is given REGEXP as an argument.")
          ellipsis-length distance-trigger half-maximum
          line-start line-limit start-context end-context
          resume-point end-delete delete-size shrink-delta)
+
     ;; Truncate the buffer if it contains too many hits.
     (if (not truncated)
         (message "Finding occurrences... done (%d found)" hit-count)
@@ -161,6 +166,7 @@ Each of such function is given REGEXP as an argument.")
       (goto-char (point-min))
       (forward-line org-grep-maximum-hits)
       (delete-region (point) (point-max)))
+
     ;; Do a preliminary pass to discover duplicate keys.
     (goto-char (point-min))
     (while (not (eobp))
@@ -177,6 +183,7 @@ Each of such function is given REGEXP as an argument.")
       (setq ellipsis-length (length org-grep-ellipsis)
             distance-trigger (+ org-grep-maximum-context-size ellipsis-length)
             half-maximum (/ org-grep-maximum-context-size 2)))
+
     ;; Insert title and initial header.
     (org-grep-insert-title "Org Grep hits"
                            (if truncated
@@ -184,14 +191,17 @@ Each of such function is given REGEXP as an argument.")
                                        org-grep-maximum-hits hit-count)
                              (format "found *%d* occurrences" hit-count)))
     (insert "* Occurrences\n")
+
     ;; Find and process all prefixed lines.
     (while (re-search-forward "^\\([^\0]*\\)\0\\([^\0]*\\)\0[^\0]*\0" nil t)
+
       ;; Remove sorting information
       (setq key (match-string 1)
             name (match-string 2))
       (replace-match "")
       (setq line-end (line-end-position))
       (when (search-forward " :: " line-end t)
+
         ;; Give more information on the file name if this is sound.
         (cond ((= (following-char) ?\n)
                (let ((base (file-name-nondirectory name))
@@ -201,7 +211,6 @@ Each of such function is given REGEXP as an argument.")
                          (abbreviate-file-name
                           (if org-grep-hide-extension name directory))
                          "=")
-                 ;;(org-move-to-column (- (window-width) 6) t nil t)
                  (insert "   ")
                  (insert "[[file:" directory "::" base "][dired]]")
                  (setq line-end (line-end-position))))
@@ -217,12 +226,14 @@ Each of such function is given REGEXP as an argument.")
                        "=")
                (forward-char 4)
                (setq line-end (line-end-position))))
+
         ;; Remove extra whitespace.
         (setq line-start (point))
         (while (re-search-forward " [ \f\t\b]+\\|[\f\t\b][ \f\t\b]*"
                                   line-end t)
           (replace-match "  ")
           (setq line-end (line-end-position)))
+
         ;; Possibly elide big contexts.
         (when distance-trigger
           (goto-char line-start)
@@ -250,15 +261,18 @@ Each of such function is given REGEXP as an argument.")
                       line-end (- line-end shrink-delta))))
             (goto-char resume-point))))
       (forward-line 1))
+
     ;; Activate Org mode on the results.
     (org-mode)
     (goto-char (point-min))
     (show-all)
+
     ;; Highlight the search string and each ellipsis.
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp)
                          'org-grep-match-face)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis)
                          'org-grep-ellipsis-face)
+
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -273,6 +287,7 @@ Each of such function is given REGEXP as an argument.")
     (local-set-key "s" 'org-grep-structure)
     (when (boundp 'org-mode-map)
       (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
+
     ;; Clean up.
     (when org-grep-mail-buffer
       (kill-buffer org-grep-mail-buffer)
@@ -283,6 +298,7 @@ Each of such function is given REGEXP as an argument.")
 ;;; Shell code generation.
 
 (defun org-grep-from-org (regexp)
+
   ;; Execute shell command.
   (goto-char (point-max))
   (let ((command (org-grep-join
@@ -291,6 +307,7 @@ Each of such function is given REGEXP as an argument.")
                                 org-grep-extra-shell-commands))
                   "; ")))
     (shell-command command t))
+
   ;; Prefix found lines.
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
@@ -302,6 +319,7 @@ Each of such function is given REGEXP as an argument.")
       (replace-match
        (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
                "- [[file:\\1::\\2][" base ":]]\\2 :: "))
+
       ;; Moderately try to resolve relative links.
       (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
                                 (line-end-position) t)
@@ -318,6 +336,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-from-gnus (regexp)
   (when (and org-grep-gnus-directory
              (file-directory-p org-grep-gnus-directory))
+
     ;; Execute shell command.
     (goto-char (point-max))
     (let ((command
@@ -330,6 +349,7 @@ Each of such function is given REGEXP as an argument.")
             " | xargs grep " org-grep-grep-options
             " -n " (shell-quote-argument regexp))))
       (shell-command command t))
+
     ;; Prefix found lines.
     (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
       (let* ((file (match-string 1))
@@ -347,6 +367,7 @@ Each of such function is given REGEXP as an argument.")
         (forward-line)))))
 
 (defun org-grep-from-rmail (regexp)
+
   ;; Execute shell command.
   (goto-char (point-max))
   (let ((command (org-grep-join
@@ -354,6 +375,7 @@ Each of such function is given REGEXP as an argument.")
                           org-grep-rmail-shell-commands)
                   "; ")))
     (shell-command command t))
+
   ;; Prefix found lines.
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
@@ -464,6 +486,7 @@ Each of such function is given REGEXP as an argument.")
         ;; region in the original, already sorted hits buffer.  SUBDIR
         ;; is a string representing the last fragment of a file path.
         info path seen start)
+
     ;; Digest all needed information into INFO.
     (save-excursion
       (goto-char (point-min))
@@ -481,6 +504,7 @@ Each of such function is given REGEXP as an argument.")
       (when (and start (> (point-max) start))
         (setq info (org-grep-structure-add-file
                     info start (point-max) path))))
+
     ;; Reorganise all saved information into a new buffer.
     (switch-to-buffer (get-buffer-create
                        (format org-grep-buffer-name-format
@@ -508,7 +532,7 @@ Each of such function is given REGEXP as an argument.")
            (split-string text "/"))))
 
 (defun org-grep-structure-digest (info start end fragments)
-  ;; Modify INFO to register that PATH uses START to END in the hits buffer.
+  "Modify INFO to register that PATH uses START to END in the hits buffer."
   (if fragments
       (let ((pair (assoc (car fragments) info)))
         (if (not pair)
