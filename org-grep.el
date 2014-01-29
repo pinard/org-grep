@@ -487,7 +487,11 @@ Each of such function is given REGEXP as an argument.")
                                org-grep-redo-regexp)))
     (erase-buffer)
     (org-grep-insert-title "Org Grep structure" nil)
-    (org-grep-structure-rebuild info buffer "*" "")
+    ;; The first SUBDIR is always empty, this loop pops it out.
+    (mapc (lambda (pair)
+            (org-grep-structure-rebuild (cdr pair) buffer "*" (car pair)))
+          (org-grep-structure-sort-info info))
+
     ;; Use Org mode over the reconstructed buffer.
     (org-mode)
     (goto-char (point-min))
@@ -518,31 +522,35 @@ Each of such function is given REGEXP as an argument.")
     (cons (cons start end) info)))
 
 (defun org-grep-structure-rebuild (info buffer prefix path)
-  ;; Collapse hierarchy whenever possible.
-  (while (and (= (length info) 1) (stringp (caar info)))
-    (setq path (concat path (caar info))
-          info (cdar info)))
-  ;; Insert an Org header.
-  (insert prefix " =" path "=")
-  ;;(org-move-to-column (- (window-width) 6) t)
-  (insert "   ")
-  (insert "[[file:" path "][dired]]\n")
-  ;; Sort INFO to get all (START . END) first, then all (SUBDIR INFO).
-  (setq info (sort info (lambda (a b)
-                          (if (stringp (car a))
-                              (and (stringp (car b))
-                                   (string-lessp (car a) (car b)))
-                            (or (stringp (car b))
-                                (< (car a) (car b)))))))
-  ;; Insert all information under that header.
-  (while info
-    (if (stringp (caar info))
-        ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
-        (org-grep-structure-rebuild (cdar info) buffer (concat prefix "*")
-                                    (concat path (caar info)))
-      ;; We have (START . END).  Insert items from the original hits buffer.
-      (insert-buffer-substring buffer (caar info) (cdar info)))
-    (setq info (cdr info))))
+
+    ;; Collapse hierarchy whenever possible.
+    (while (and (= (length info) 1) (stringp (caar info)))
+      (setq path (concat path (caar info))
+            info (cdar info)))
+
+    ;; Insert an Org header.
+    (insert prefix " =" path "=")
+    (insert "   ")
+    (insert "[[file:" path "][dired]]\n")
+
+    ;; Insert all information under that header.
+    (mapc (lambda (pair)
+            (if (stringp (car pair))
+                ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
+                (org-grep-structure-rebuild (cdr pair) buffer (concat prefix "*")
+                                            (concat path (car pair)))
+              ;; We have (START . END).  Insert items from the original hits buffer.
+              (insert-buffer-substring buffer (car pair) (cdr pair))))
+          (org-grep-structure-sort-info info)))
+
+(defun org-grep-structure-sort-info (info)
+  "Sort INFO to get all (START . END) first, then all (SUBDIR INFO)."
+  (sort info (lambda (a b)
+               (if (stringp (car a))
+                   (and (stringp (car b))
+                        (string-lessp (car a) (car b)))
+                 (or (stringp (car b))
+                     (< (car a) (car b)))))))
 
 ;;; Miscellaneous service functions.
 
