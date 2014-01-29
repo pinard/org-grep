@@ -120,16 +120,24 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-internal (regexp full)
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
-  ;; Collect information.  Methods prefix each line with: some string
-  ;; (likely the lower-cased base of the file name), a first NUL, a
-  ;; disambiguing key (likely the full file name), a second NUL, a
-  ;; line number justified to the right into 5 columns and space
-  ;; filled, a third NUL, "- ", clickable information, then " :: ".
+  ;; Prepare the hits buffer, removing its previous contents.
   (pop-to-buffer org-grep-hits-buffer-name)
   (buffer-disable-undo)
   (fundamental-mode)
   (setq buffer-read-only nil)
   (erase-buffer)
+  (when org-grep-redo-regexp
+    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
+    (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
+  ;; Save arguments, in particular for a redo command.
+  (setq org-grep-redo-full full
+        org-grep-redo-options org-grep-grep-options
+        org-grep-redo-regexp regexp)
+  ;; Collect information.  Methods prefix each line with: some string
+  ;; (likely the lower-cased base of the file name), a first NUL, a
+  ;; disambiguing key (likely the full file name), a second NUL, a
+  ;; line number justified to the right into 5 columns and space
+  ;; filled, a third NUL, "- ", clickable information, then " :: ".
   (save-some-buffers t)
   (message "Finding occurrences...")
   (org-grep-from-org regexp)
@@ -169,7 +177,13 @@ Each of such function is given REGEXP as an argument.")
       (setq ellipsis-length (length org-grep-ellipsis)
             distance-trigger (+ org-grep-maximum-context-size ellipsis-length)
             half-maximum (/ org-grep-maximum-context-size 2)))
-    (goto-char (point-min))
+    ;; Insert title and initial header.
+    (org-grep-insert-title "Org Grep hits"
+                           (if truncated
+                               (format "retained *%d* occurrences out of *%d*"
+                                       org-grep-maximum-hits hit-count)
+                             (format "found *%d* occurrences" hit-count)))
+    (insert "* Occurrences\n")
     ;; Find and process all prefixed lines.
     (while (re-search-forward "^\\([^\0]*\\)\0\\([^\0]*\\)\0[^\0]*\0" nil t)
       ;; Remove sorting information
@@ -180,13 +194,17 @@ Each of such function is given REGEXP as an argument.")
       (when (search-forward " :: " line-end t)
         ;; Give more information on the file name if this is sound.
         (cond ((= (following-char) ?\n)
-               ;; The context would be otherwise empty.
-               (insert "="
-                       (abbreviate-file-name (if org-grep-hide-extension
-                                                 name
-                                               (file-name-directory name)))
-                       "=")
-               (setq line-end (line-end-position)))
+               (let ((base (file-name-nondirectory name))
+                     (directory (file-name-directory name)))
+                 ;; The context would be otherwise empty.
+                 (insert "="
+                         (abbreviate-file-name
+                          (if org-grep-hide-extension name directory))
+                         "=")
+                 ;;(org-move-to-column (- (window-width) 6) t nil t)
+                 (insert "   ")
+                 (insert "[[file:" directory "::" base "][dired]]")
+                 (setq line-end (line-end-position))))
               ((and (member key duplicates)
                     (not (string-equal name current-name)))
                ;; The reference is ambiguous.
@@ -233,31 +251,14 @@ Each of such function is given REGEXP as an argument.")
             (goto-char resume-point))))
       (forward-line 1))
     ;; Activate Org mode on the results.
-    (goto-char (point-min))
-    (insert (format "* =org-grep%s %s="
-                    (if (string-equal org-grep-grep-options "")
-                        ""
-                      (concat " " org-grep-grep-options))
-                    (shell-quote-argument regexp)))
-    (if truncated
-        (insert (format " retained *%d* occurrences out of *%d*."
-                        org-grep-maximum-hits hit-count))
-      (insert (format " found *%d* occurrences." hit-count)))
-    (insert "\n\n")
     (org-mode)
     (goto-char (point-min))
-    (org-show-subtree)
+    (show-all)
     ;; Highlight the search string and each ellipsis.
-    (when org-grep-redo-regexp
-      (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
-      (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
     (hi-lock-face-buffer (org-grep-hi-lock-helper regexp)
                          'org-grep-match-face)
     (hi-lock-face-buffer (regexp-quote org-grep-ellipsis)
                          'org-grep-ellipsis-face)
-    (setq org-grep-redo-full full
-          org-grep-redo-options org-grep-grep-options
-          org-grep-redo-regexp regexp)
     ;; Add special commands to the keymap.
     (use-local-map (copy-keymap (current-local-map)))
     (setq buffer-read-only t)
@@ -382,53 +383,6 @@ Each of such function is given REGEXP as an argument.")
               " -n " (shell-quote-argument regexp))
     ":"))
 
-;;; Miscellaneous service functions.
-
-(defun org-grep-message-ref (file line gnus-directory)
-  (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
-    (setq org-grep-mail-buffer (get-buffer-create org-grep-mail-buffer-name)))
-  (save-excursion
-    (set-buffer org-grep-mail-buffer)
-    (unless (string-equal file org-grep-mail-buffer-file)
-      (erase-buffer)
-      (insert-file file)
-      (setq org-grep-mail-buffer-file file))
-    (let ((case-fold-search t))
-      (goto-line line)
-      ;; FIXME: Should limit search to current message header!
-      (if (not (search-backward "\nmessage-id:" nil t))
-          (concat "file:" file "::" (number-to-string line))
-        (forward-char 12)
-        (skip-chars-forward " ")
-        (let ((id (buffer-substring (point) (line-end-position))))
-          (if gnus-directory
-              (let ((group (dired-make-relative file gnus-directory)))
-                (if (string-equal (substring group 0 6) "/nnml/")
-                    (concat "gnus:nnml:"
-                            (substring (file-name-directory group) 6 -1)
-                            "#" id)
-                  (concat "gnus:nnfolder:" (substring group 1) "#" id)))
-            (concat "rmail:" file "#" id)))))))
-
-(defun org-grep-join (fragments separator)
-  (if fragments
-      (concat (car fragments)
-              (apply 'concat
-                     (mapcar (lambda (fragment) (concat separator fragment))
-                             (cdr fragments))))
-    ""))
-
-(defun org-grep-hi-lock-helper (regexp)
-  ;; Stolen from hi-lock-process-phrase.
-  ;; FIXME: ASCII only.  Sad that hi-lock ignores case-fold-search!
-  ;; Also, hi-lock-face-phrase-buffer does not have an unface counterpart.
-  (if (string-match "\\b-[A-Za-z]*i" org-grep-grep-options)
-      (replace-regexp-in-string
-       "\\<[a-z]"
-       (lambda (text) (format "[%s%s]" (upcase text) text))
-       regexp)
-    regexp))
-
 ;;; Additional commands for an Org Grep hits buffer.
 
 (defun org-grep-copy ()
@@ -439,12 +393,14 @@ Each of such function is given REGEXP as an argument.")
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
     (goto-char (point-min))
+    (delete-region (point) (line-end-position))
+    (insert "#+TITLE: Org Grep copy")
     (while (re-search-forward org-grep-hit-regexp nil t)
       (insert "[ ] ")
       (forward-line 1))
     (org-mode)
     (goto-char (point-min))
-    (org-show-subtree)))
+    (show-all)))
 
 (defun org-grep-current ()
   (interactive)
@@ -530,7 +486,7 @@ Each of such function is given REGEXP as an argument.")
                        (format org-grep-buffer-name-format
                                org-grep-redo-regexp)))
     (erase-buffer)
-    (insert "#+TITLE: Org Grep structure for =" org-grep-redo-regexp "=\n\n")
+    (org-grep-insert-title "Org Grep structure" nil)
     (org-grep-structure-rebuild info buffer "*" "")
     ;; Use Org mode over the reconstructed buffer.
     (org-mode)
@@ -567,7 +523,10 @@ Each of such function is given REGEXP as an argument.")
     (setq path (concat path (caar info))
           info (cdar info)))
   ;; Insert an Org header.
-  (insert prefix " =" path "=  [[file:" path "][(dir)]]\n")
+  (insert prefix " =" path "=")
+  ;;(org-move-to-column (- (window-width) 6) t)
+  (insert "   ")
+  (insert "[[file:" path "][dired]]\n")
   ;; Sort INFO to get all (START . END) first, then all (SUBDIR INFO).
   (setq info (sort info (lambda (a b)
                           (if (stringp (car a))
@@ -584,5 +543,63 @@ Each of such function is given REGEXP as an argument.")
       ;; We have (START . END).  Insert items from the original hits buffer.
       (insert-buffer-substring buffer (caar info) (cdar info)))
     (setq info (cdr info))))
+
+;;; Miscellaneous service functions.
+
+(defun org-grep-insert-title (title comment)
+  (goto-char (point-min))
+  (insert "#+TITLE: " title "\n"
+          "=org-grep" (if org-grep-redo-full "-full" "")
+          (if (string-equal org-grep-grep-options "")
+              ""
+            (concat " " org-grep-grep-options))
+          " " (shell-quote-argument org-grep-redo-regexp) "="
+          (if comment (concat " " comment) "")
+          "\n\n"))
+
+(defun org-grep-message-ref (file line gnus-directory)
+  (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
+    (setq org-grep-mail-buffer (get-buffer-create org-grep-mail-buffer-name)))
+  (save-excursion
+    (set-buffer org-grep-mail-buffer)
+    (unless (string-equal file org-grep-mail-buffer-file)
+      (erase-buffer)
+      (insert-file file)
+      (setq org-grep-mail-buffer-file file))
+    (let ((case-fold-search t))
+      (goto-line line)
+      ;; FIXME: Should limit search to current message header!
+      (if (not (search-backward "\nmessage-id:" nil t))
+          (concat "file:" file "::" (number-to-string line))
+        (forward-char 12)
+        (skip-chars-forward " ")
+        (let ((id (buffer-substring (point) (line-end-position))))
+          (if gnus-directory
+              (let ((group (dired-make-relative file gnus-directory)))
+                (if (string-equal (substring group 0 6) "/nnml/")
+                    (concat "gnus:nnml:"
+                            (substring (file-name-directory group) 6 -1)
+                            "#" id)
+                  (concat "gnus:nnfolder:" (substring group 1) "#" id)))
+            (concat "rmail:" file "#" id)))))))
+
+(defun org-grep-join (fragments separator)
+  (if fragments
+      (concat (car fragments)
+              (apply 'concat
+                     (mapcar (lambda (fragment) (concat separator fragment))
+                             (cdr fragments))))
+    ""))
+
+(defun org-grep-hi-lock-helper (regexp)
+  ;; Stolen from hi-lock-process-phrase.
+  ;; FIXME: ASCII only.  Sad that hi-lock ignores case-fold-search!
+  ;; Also, hi-lock-face-phrase-buffer does not have an unface counterpart.
+  (if (string-match "\\b-[A-Za-z]*i" org-grep-grep-options)
+      (replace-regexp-in-string
+       "\\<[a-z]"
+       (lambda (text) (format "[%s%s]" (upcase text) text))
+       regexp)
+    regexp))
 
 ;;; org-grep.el ends here
