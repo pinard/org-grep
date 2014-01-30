@@ -83,9 +83,9 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-mail-buffer nil)
 (defvar org-grep-mail-buffer-file nil)
-(defvar org-grep-redo-full nil)
-(defvar org-grep-redo-options nil)
-(defvar org-grep-redo-regexp nil)
+(defvar org-grep-last-full nil)
+(defvar org-grep-last-options nil)
+(defvar org-grep-last-regexp nil)
 
 ;;; Main driver functions.
 
@@ -128,14 +128,14 @@ Each of such function is given REGEXP as an argument.")
   (fundamental-mode)
   (setq buffer-read-only nil)
   (erase-buffer)
-  (when org-grep-redo-regexp
-    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-redo-regexp))
+  (when org-grep-last-regexp
+    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-last-regexp))
     (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
 
   ;; Save arguments, in particular for a redo command.
-  (setq org-grep-redo-full full
-        org-grep-redo-options org-grep-grep-options
-        org-grep-redo-regexp regexp)
+  (setq org-grep-last-full full
+        org-grep-last-options org-grep-grep-options
+        org-grep-last-regexp regexp)
 
   ;; Collect information.  Methods prefix each line with: some string
   ;; (likely the lower-cased base of the file name), a first NUL, a
@@ -411,7 +411,7 @@ Each of such function is given REGEXP as an argument.")
   (interactive)
   (let ((buffer (get-buffer-create
                  (format org-grep-buffer-name-format
-                         org-grep-redo-regexp))))
+                         org-grep-last-regexp))))
     (copy-to-buffer buffer (point-min) (point-max))
     (switch-to-buffer buffer)
     (goto-char (point-min))
@@ -473,9 +473,9 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-redo ()
   (interactive)
-  (when org-grep-redo-regexp
-    (let ((org-grep-grep-options org-grep-redo-options))
-      (org-grep-internal org-grep-redo-regexp org-grep-redo-full))))
+  (when org-grep-last-regexp
+    (let ((org-grep-grep-options org-grep-last-options))
+      (org-grep-internal org-grep-last-regexp org-grep-last-full))))
 
 (defun org-grep-structure ()
   (interactive)
@@ -508,7 +508,7 @@ Each of such function is given REGEXP as an argument.")
     ;; Reorganise all saved information into a new buffer.
     (switch-to-buffer (get-buffer-create
                        (format org-grep-buffer-name-format
-                               org-grep-redo-regexp)))
+                               org-grep-last-regexp)))
     (erase-buffer)
     (org-grep-insert-title "Org Grep structure" nil)
     ;; The first SUBDIR is always empty, this loop pops it out.
@@ -579,11 +579,11 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-insert-title (title comment)
   (goto-char (point-min))
   (insert "#+TITLE: " title "\n"
-          "=org-grep" (if org-grep-redo-full "-full" "")
+          "=org-grep" (if org-grep-last-full "-full" "")
           (if (string-equal org-grep-grep-options "")
               ""
             (concat " " org-grep-grep-options))
-          " " (shell-quote-argument org-grep-redo-regexp) "="
+          " " (shell-quote-argument org-grep-last-regexp) "="
           (if comment (concat " " comment) "")
           "\n\n"))
 
