@@ -110,6 +110,7 @@ Each of such function is given REGEXP as an argument.")
     (org-grep-display-browse))
   (message org-grep-message-final))
 
+;;;###autoload
 (defun org-grep-full (regexp &optional arg)
   (interactive
    (list (if (use-region-p)
