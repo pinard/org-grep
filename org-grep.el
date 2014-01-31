@@ -353,9 +353,7 @@ Each of such function is given REGEXP as an argument.")
 
   ;; Insert title and overall header.
   (goto-char (point-min))
-  (insert "#+TITLE: " (org-grep-title-string)
-          " [[elisp:(org-grep-display-edit)][edit]]"
-          " [[elisp:(org-grep-display-tree)][tree]]\n"
+  (insert "#+TITLE: " (org-grep-title-string "browse") "\n"
           "\n"
           "* Occurrences\n")
 
@@ -389,9 +387,7 @@ Each of such function is given REGEXP as an argument.")
   (interactive)
   (org-grep-clean-buffer nil)
   (goto-char (point-min))
-  (insert "#+TITLE: " (org-grep-title-string)
-          " [[elisp:(org-grep-display-browse)][browse]]"
-          " [[elisp:(org-grep-display-tree)][tree]]\n"
+  (insert "#+TITLE: " (org-grep-title-string "edit") "\n"
           "\n"
           "* Editable occurrences\n")
   (while (re-search-forward org-grep-hit-regexp nil t)
@@ -438,9 +434,7 @@ Each of such function is given REGEXP as an argument.")
 
     ;; Reorganise all saved information.
     (org-grep-clean-buffer t)
-    (insert "#+TITLE: " (org-grep-title-string)
-            " [[elisp:(org-grep-display-browse)][browse]]"
-            " [[elisp:(org-grep-display-edit)][edit]]\n"
+    (insert "#+TITLE: " (org-grep-title-string "tree") "\n"
             "\n")
     ;; The first SUBDIR is always empty, this loop pops it out.
     (mapc (lambda (pair)
@@ -673,11 +667,21 @@ Each of such function is given REGEXP as an argument.")
                   ((string-match "\\`rmail:\\(.*\\)#" ref)
                    (list 'rmail text (match-string 1 ref) line)))))))))
 
-(defun org-grep-title-string ()
-  (let ((text (concat org-grep-regexp
-                      " (" (symbol-name org-grep-function))))
+(defun org-grep-title-string (mode)
+  (let ((modes '("browse" "edit" "tree"))
+        (result ""))
+    (setq result (concat org-grep-regexp
+                         " (" (symbol-name org-grep-function)))
     (when (not (string-equal org-grep-grep-options ""))
-      (setq text (concat text " " org-grep-grep-options)))
-    (concat text ")")))
+      (setq result (concat result " " org-grep-grep-options)))
+    (setq result (concat result ")    "))
+    (while modes
+      (setq result (concat result " "
+                           (if (string-equal mode (car modes))
+                               (car modes)
+                             (concat "[[elisp:(org-grep-display-"
+                                     (car modes) ")][" (car modes) "]]"))))
+      (setq modes (cdr modes)))
+    result))
 
 ;;; org-grep.el ends here
