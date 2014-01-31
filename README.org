@@ -24,6 +24,87 @@ one, I added these lines to my =~/.emacs= file:
 
 yet of course, one may choose any other key binding.
 
+** Usage
+
+To use this tool, call =M-x org-grep= or the keybinding put aside for
+it, and reply to the prompt with a regular expression to search for.
+Happily enough, Emacs and the *grep* command use rather similar syntax
+for regular expressions.  Be well aware that all currently opened
+files in Emacs are automatically saved to disk before that command
+gets executed.
+
+If the command is given an prefix argument (that is, if *C-u* is given
+immediately before the command), the user may interactively edit the
+*grep* options.  If the user did not configure *org-grep-grep-options*
+otherwise, the default option is =-i=, which ignores case differences
+while searching.  So, if you want to search strictly, use a prefix
+argument and erase that =-i=.
+
+There is another command =M-x org-grep-full= which also search Unix
+mailboxes and Gnus mailgroups, given the user configured the
+appropriate variables.  The command is separate from =M-x org-grep=
+command, giving more control to users who do not like the slowdown.
+
+Both commands create an Org buffer with the found lines, each preceded
+by the base name of the file containing the line, and the line number
+within that file.
+
+This is the =[browse]= view, which is a read-only view.  Org Grep also
+offers the =[edit]= view and the =[tree]= view.  In all views, buttons on
+the title line may be used to switch to the other views.  (You might
+want to set *org-confirm-elisp-link-function* to *nil*, so avoiding all
+confirmation requests.)  There are also =dired= buttons which may be
+added at some places: they normally open Emacs /Dired/ on the proper
+directory for the line.
+
+** Views
+
+In the =[browse]= view, one may use standard Org commands which do not
+modify the buffer, including of course those able to follow links.  A
+few extra key bindings are also available:
+
+  - C-c C-c :: For the search hit as identified by the position of the
+               cursor, open the corresponding original file (unless it
+               is already visited, of course), make it the current
+               window, with the cursor left on that line.
+  - C-x ` :: Move to the next search hit, open the corresponding
+             original file, make it the current window, with the
+             cursor left on the original found line.
+  - . :: For the search hit as identified by the position of the
+         cursor, open the corresponding original file with the cursor
+         positioned on the original found line.  Leave the cursor
+         within the search results window (but see [[Caveats]] below).
+  - n :: Move to the next search hit, open the corresponding original
+         file with the cursor positioned on the original found line.
+         Leave the cursor within the search results window (but see
+         [[Caveats]] below).
+  - p :: Move to the previous search hit, open the corresponding
+         original file with the cursor positioned on the original
+         found line.  Leave the cursor within the search results
+         window (but see [[Caveats]] below).
+  - g :: Save all modified files to disk, then refresh the search hit
+         buffer from the actual contents of the disk files.
+  - e :: Switch to the =[edit]= view.
+  - t :: Switch to the =[tree]= view.
+  - q :: Quit the =*Org Grep*= window, deleting it.
+
+In all Org buffers, command *C-x `* uses the contents of an existing
+=*Org Grep*= buffer for moving to the next search hit.  If that buffer
+does not exist, or if there is no following hit, the standard Emacs
+action is used instead: usually moving to the next compilation error.
+
+In the =[edit]= view, special commands of the =[browse]= view are no more
+available, and all standard Org commands may be used.  For
+convenience, all list items are turned into checklist items.
+
+In the =[tree]= view, like in the =[edit]= view, special commands of the
+=[browse]= view are no more available, and all standard Org commands may
+be used.  In that view, a hierarchical set of headers represent
+directories, and all hits are shown under the appropriate headers.
+This is useful to regroup an overwhelming number of hits under
+projects, or such things.  The headers are sorted lexicographically.
+Also, they get collapsed to avoid deep nesting whenever possible.
+
 ** Configuration
 
 Org Grep may be used immediately, without any configuration.  However,
@@ -105,77 +186,7 @@ a few Emacs variables may be set prior to, or after loading
        links and positioning also apply, as explained in the
        description of the *org-grep-gnus-directory* variable.
 
-** Usage
-
-To use this tool, call =M-x org-grep= or the keybinding put aside for
-it, and reply to the prompt with a regular expression to search for.
-Happily enough, Emacs and the *grep* command use rather similar syntax
-for regular expressions.  Be well aware that all currently opened
-files in Emacs are automatically saved to disk before that command
-gets executed.
-
-If the command is given an prefix argument (that is, if *C-u* is given
-immediately before the command), the user may interactively edit the
-*grep* options.  If the user did not configure *org-grep-grep-options*
-otherwise, the default option is =-i=, which ignores case differences
-while searching.  So, if you want to search strictly, use a prefix
-argument and erase that =-i=.
-
-There is another command =M-x org-grep-full= which also search Unix
-mailboxes and Gnus mailgroups, given the user configured the
-appropriate variables.  The command is separate from =M-x org-grep=
-command, giving more control to users who do not like the slowdown.
-
-Both commands create an Org buffer with the found lines, each preceded
-by the base name of the file containing the line, and the line number
-within that file.  The buffer is read-only, but standard Org commands
-which do not modify the buffer apply, including of course those able
-to follow links.  A few extra key bindings are also available:
-
-  - C-c C-c :: For the search hit as identified by the position of the
-               cursor, open the corresponding original file (unless it
-               is already visited, of course), make it the current
-               window, with the cursor left on that line.
-  - C-x ` :: Move to the next search hit, open the corresponding
-             original file, make it the current window, with the
-             cursor left on the original found line.
-  - . :: For the search hit as identified by the position of the
-         cursor, open the corresponding original file with the cursor
-         positioned on the original found line.  Leave the cursor
-         within the search results window (but see [[Caveats]] below).
-  - n :: Move to the next search hit, open the corresponding original
-         file with the cursor positioned on the original found line.
-         Leave the cursor within the search results window (but see
-         [[Caveats]] below).
-  - p :: Move to the previous search hit, open the corresponding
-         original file with the cursor positioned on the original
-         found line.  Leave the cursor within the search results
-         window (but see [[Caveats]] below).
-  - g :: Save all modified files to disk, then refresh the search hit
-         buffer from the actual contents of the disk files.
-  - c :: Copy the hits buffer into another Emacs buffer whose name
-         depends on the regular expression.  This effectively saves
-         the buffer contents before starting a new search.  The new
-         buffer is a regular Org file with no specially added command.
-         Also, for convenience, all list items are turned into
-         checklist items.
-  - s :: Restructure the hits buffer into another Emacs buffer whose
-         name depends on the regular expression.  In this new buffer,
-         a hierarchical set of headers represent directories, and all
-         hits are sorted under the appropriate headers.  This is
-         sometimes useful to regroup an overwhelming number of hits
-         under projects, or such things.  The headers are sorted
-         lexicographically.  Also, they get collapsed to avoid deep
-         nesting whenever possible.  The new buffer is a regular Org
-         file with no specially added command.  For convenience, a
-         =(dir)= button is added on the header lines, which normally
-         open Emacs /Dired/ on the directory introduced by that header.
-  - q :: Quit the =*Org Grep*= window, deleting it.
-
-In all Org buffers, command *C-x `* uses the contents of an existing
-=*Org Grep*= buffer for moving to the next search hit.  If that buffer
-does not exist, or if there is no following hit, the standard Emacs
-action is used instead: usually moving to the next compilation error.
+** Extra shell commands
 
 Here is an example of *org-grep-extra-shell-commands*.  Let's assume
 that one want to /also/ search the file system for matching file names.
@@ -204,7 +215,7 @@ after the directory changed.  Given the repository is located at
 
   (defun fp-org-grep-in-share-bin (regexp)
     (concat "(cd ~/share/bin && git grep " org-grep-grep-options
-            " -n " (shell-quote-argument regexp)
+            " -n -e " (shell-quote-argument regexp)
             " | sed 's,^,~/share/bin/,')"))
 #+END_SRC
 
@@ -264,9 +275,10 @@ which I can easily live with.  Here are those I'm aware of:
   relocated: I would need some dependable machinery to recognize them.
 
 - The size of any elided text is reduced so the elision occurs on word
-  boundaries.  As a consequence, it may happen that long words prevent
-  elision.
+  boundaries.  As a consequence, it may happen that very long words
+  prevent elision.
 
-- The *s* command to restructure the hits buffer only handles file and
-  directory references, it does not handle mailboxes or mailgroups.
-  This will be likely corrected when the need arises.
+- If the Emacs function *rename-buffer* is used on a hits buffer, and a
+  new search is launched afterwards, reverting in the renamed buffer
+  partly uses the arguments of the last search, while it should always
+  use the arguments at the time the renamed buffer was created.

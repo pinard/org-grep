@@ -59,7 +59,7 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-maximum-context-size 200
   "Maximum size of a context chunk within a hit line, nil means no elision.")
 
-(defvar org-grep-maximum-hits 2500
+(defvar org-grep-maximum-hits 1000
   "Maximum number of hits, nil means no limit.")
 
 (defvar org-grep-rmail-shell-commands nil
@@ -76,226 +76,102 @@ Each of such function is given REGEXP as an argument.")
     (t (:background "pink")))
   "Face for each org-grep ellipsis.")
 
-(defvar org-grep-buffer-name-format "*Org Grep — %s*")
-(defvar org-grep-hits-buffer-name "*Org Grep hits*")
-(defvar org-grep-mail-buffer-name "*Org Grep mail*")
+;; These variables should ideally be buffer-local, but they do not
+;; survive switching to Fundamental mode or Org mode.
+(defvar org-grep-function nil)
+(defvar org-grep-options nil)
+(defvar org-grep-regexp nil)
 
+(defvar org-grep-buffer-name "*Org Grep*")
 (defvar org-grep-hit-regexp "^- ")
-(defvar org-grep-mail-buffer nil)
-(defvar org-grep-mail-buffer-file nil)
-(defvar org-grep-last-full nil)
-(defvar org-grep-last-options nil)
-(defvar org-grep-last-regexp nil)
+(defvar org-grep-message-initial "Finding occurrences...")
+(defvar org-grep-message-final nil)
+(defvar org-grep-temp-buffer nil)
+(defvar org-grep-temp-buffer-file nil)
+(defvar org-grep-temp-buffer-name "*Org Grep temp*")
 
 ;;; Main driver functions.
 
 ;;;###autoload
-(defun org-grep (regexp &optional prefix)
+(defun org-grep (regexp &optional arg)
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
            (read-string "Enter a regexp to grep: "))
          current-prefix-arg))
-  (if (and prefix (called-interactively-p 'any))
+  (if (and arg (called-interactively-p 'any))
       (let ((org-grep-grep-options
              (read-string "Grep options: "
                           (and (not (string-equal org-grep-grep-options ""))
                                (concat org-grep-grep-options " ")))))
-        (org-grep-internal regexp nil))
-    (org-grep-internal regexp nil)))
+        (org-grep-load-buffer regexp nil))
+    (org-grep-load-buffer regexp nil))
+  (let ((buffer-undo-list t))
+    (org-grep-display-browse))
+  (message org-grep-message-final))
 
-(defun org-grep-full (regexp &optional prefix)
+(defun org-grep-full (regexp &optional arg)
   (interactive
    (list (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
            (read-string "Enter a regexp to fully grep: "))
          current-prefix-arg))
-  (if (and prefix (called-interactively-p 'any))
+  (if (and arg (called-interactively-p 'any))
       (let ((org-grep-grep-options
              (read-string "Grep options: "
                           (and (not (string-equal org-grep-grep-options ""))
                                (concat org-grep-grep-options " ")))))
-        (org-grep-internal regexp t))
-    (org-grep-internal regexp t)))
+        (org-grep-load-buffer regexp t))
+    (org-grep-load-buffer regexp t))
+  (let ((buffer-undo-list t))
+    (org-grep-display-browse))
+  (message org-grep-message-final))
 
-(defun org-grep-internal (regexp full)
+(defun org-grep-load-buffer (regexp full)
   (when (string-equal regexp "")
     (user-error "Nothing to find!"))
 
   ;; Prepare the hits buffer, removing its previous contents.
-  (pop-to-buffer org-grep-hits-buffer-name)
-  (buffer-disable-undo)
-  (fundamental-mode)
-  (setq buffer-read-only nil)
-  (erase-buffer)
-  (when org-grep-last-regexp
-    (hi-lock-unface-buffer (org-grep-hi-lock-helper org-grep-last-regexp))
-    (hi-lock-unface-buffer (regexp-quote org-grep-ellipsis)))
+  (pop-to-buffer org-grep-buffer-name)
+  (org-grep-clean-buffer t)
 
-  ;; Save arguments, in particular for a redo command.
-  (setq org-grep-last-full full
-        org-grep-last-options org-grep-grep-options
-        org-grep-last-regexp regexp)
+  ;; Save arguments so the command could be relaunched.
+  (setq org-grep-function (if full 'org-grep-full 'org-grep))
+  (setq org-grep-options org-grep-grep-options)
+  (setq org-grep-regexp regexp)
 
-  ;; Collect information.  Methods prefix each line with: some string
-  ;; (likely the lower-cased base of the file name), a first NUL, a
-  ;; disambiguing key (likely the full file name), a second NUL, a
-  ;; line number justified to the right into 5 columns and space
-  ;; filled, a third NUL, "- ", clickable information, then " :: ".
+  ;; Find occurrences.  Collecting methods prefix each matched line
+  ;; with "- ", clickable information, then " :: ".
   (save-some-buffers t)
-  (message "Finding occurrences...")
-  (org-grep-from-org regexp)
-  (when full
-    (org-grep-from-rmail regexp)
-    (org-grep-from-gnus regexp))
-
-  ;; Sort lines, then attempt some serious cleanup on them.
-  (sort-lines nil (point-min) (point-max))
-  (let* ((hit-count (count-lines (point-min) (point-max)))
-         (truncated (and org-grep-maximum-hits
-                         (> hit-count org-grep-maximum-hits)))
-         info duplicates key name pair current-name
-         ellipsis-length distance-trigger half-maximum
-         line-start line-limit start-context end-context
-         resume-point end-delete delete-size shrink-delta)
+  (message org-grep-message-initial)
+  (setq buffer-undo-list nil)
+  (let ((buffer-undo-list t))
+    (org-grep-from-org regexp)
+    (when full
+      (org-grep-from-rmail regexp)
+      (org-grep-from-gnus regexp)
+      (setq org-grep-temp-buffer-file nil))
 
     ;; Truncate the buffer if it contains too many hits.
-    (if (not truncated)
-        (message "Finding occurrences... done (%d found)" hit-count)
-      (message "Finding occurrences... done (showing %d / %d)"
-               org-grep-maximum-hits hit-count)
-      (goto-char (point-min))
-      (forward-line org-grep-maximum-hits)
-      (delete-region (point) (point-max)))
+    (let ((hit-count (count-lines (point-min) (point-max))))
+      (if (not (and org-grep-maximum-hits
+                    (> hit-count org-grep-maximum-hits)))
+          (setq org-grep-message-final
+                (concat org-grep-message-initial
+                        (format " done (%d found)" hit-count)))
+        (setq org-grep-message-final
+              (concat org-grep-message-initial
+                      (format " done (showing %d / %d)"
+                              org-grep-maximum-hits hit-count)))
+        ;; Sort lines so what is retained or not is less random.
+        (sort-lines nil (point-min) (point-max))
+        (goto-char (point-min))
+        (forward-line org-grep-maximum-hits)
+        (delete-region (point) (point-max)))
 
-    ;; Do a preliminary pass to discover duplicate keys.
-    (goto-char (point-min))
-    (while (not (eobp))
-      (when (looking-at "\\([^\0]*\\)\0\\([^\0]*\\)\0")
-        (setq key (match-string 1)
-              name (match-string 2)
-              pair (assoc key info))
-        (cond ((not pair) (setq info (cons (cons key name) info)))
-              ((string-equal (cdr pair) name))
-              ((member (car pair) duplicates))
-              (t (setq duplicates (cons key duplicates)))))
-      (forward-line 1))
-    (when (and org-grep-ellipsis org-grep-maximum-context-size)
-      (setq ellipsis-length (length org-grep-ellipsis)
-            distance-trigger (+ org-grep-maximum-context-size ellipsis-length)
-            half-maximum (/ org-grep-maximum-context-size 2)))
-
-    ;; Insert title and initial header.
-    (org-grep-insert-title "Org Grep hits"
-                           (if truncated
-                               (format "retained *%d* occurrences out of *%d*"
-                                       org-grep-maximum-hits hit-count)
-                             (format "found *%d* occurrences" hit-count)))
-    (insert "* Occurrences\n")
-
-    ;; Find and process all prefixed lines.
-    (while (re-search-forward "^\\([^\0]*\\)\0\\([^\0]*\\)\0[^\0]*\0" nil t)
-
-      ;; Remove sorting information
-      (setq key (match-string 1)
-            name (match-string 2))
-      (replace-match "")
-      (setq line-end (line-end-position))
-      (when (search-forward " :: " line-end t)
-
-        ;; Give more information on the file name if this is sound.
-        (cond ((= (following-char) ?\n)
-               (let ((base (file-name-nondirectory name))
-                     (directory (file-name-directory name)))
-                 ;; The context would be otherwise empty.
-                 (insert "="
-                         (abbreviate-file-name
-                          (if org-grep-hide-extension name directory))
-                         "=   [[file:" directory "::" (regexp-quote base)
-                         "][dired]]")
-                 (setq line-end (line-end-position))))
-              ((and (member key duplicates)
-                    (not (string-equal name current-name)))
-               ;; The reference is ambiguous.
-               (setq current-name name)
-               (backward-char 4)
-               (insert " ="
-                       (abbreviate-file-name (if org-grep-hide-extension
-                                                 name
-                                               (file-name-directory name)))
-                       "=")
-               (forward-char 4)
-               (setq line-end (line-end-position))))
-
-        ;; Remove extra whitespace.
-        (setq line-start (point))
-        (while (re-search-forward " [ \f\t\b]+\\|[\f\t\b][ \f\t\b]*"
-                                  line-end t)
-          (replace-match "  ")
-          (setq line-end (line-end-position)))
-
-        ;; Possibly elide big contexts.
-        (when distance-trigger
-          (goto-char line-start)
-          (while (< (point) line-end)
-            (setq start-context (point))
-            (if (re-search-forward regexp line-end t)
-                (setq end-context (match-beginning 0)
-                      resume-point (match-end 0))
-              (setq end-context line-end
-                    resume-point line-end))
-            (when (> (- end-context start-context) distance-trigger)
-              (goto-char (- end-context half-maximum))
-              (forward-word)
-              (backward-word)
-              (setq end-delete (point))
-              (goto-char (+ start-context half-maximum))
-              (backward-word)
-              (forward-word)
-              (setq delete-size (- end-delete (point))
-                    shrink-delta (- delete-size ellipsis-length))
-              (when (> shrink-delta 0)
-                (delete-char delete-size)
-                (insert org-grep-ellipsis)
-                (setq resume-point (- resume-point shrink-delta)
-                      line-end (- line-end shrink-delta))))
-            (goto-char resume-point))))
-      (forward-line 1))
-
-    ;; Activate Org mode on the results.
-    (org-mode)
-    (goto-char (point-min))
-    (show-all)
-
-    ;; Highlight the search string and each ellipsis.
-    (hi-lock-face-buffer (org-grep-hi-lock-helper regexp)
-                         'org-grep-match-face)
-    (hi-lock-face-buffer (regexp-quote org-grep-ellipsis)
-                         'org-grep-ellipsis-face)
-
-    ;; Add special commands to the keymap.
-    (use-local-map (copy-keymap (current-local-map)))
-    (setq buffer-read-only t)
-    (local-set-key "\C-c\C-c" 'org-grep-current-jump)
-    (local-set-key "\C-x`" 'org-grep-next-jump)
-    (local-set-key "." 'org-grep-current)
-    (local-set-key "c" 'org-grep-copy)
-    (local-set-key "g" 'org-grep-redo)
-    (local-set-key "n" 'org-grep-next)
-    (local-set-key "p" 'org-grep-previous)
-    (local-set-key "q" 'org-grep-quit)
-    (local-set-key "s" 'org-grep-structure)
-    (when (boundp 'org-mode-map)
-      (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump))
-
-    ;; Clean up.
-    (when org-grep-mail-buffer
-      (kill-buffer org-grep-mail-buffer)
-      (setq org-grep-mail-buffer nil
-            org-grep-mail-buffer-file nil))
-    hit-count))
+      hit-count)))
 
-;;; Shell code generation.
+;;; Occurrences finders.
 
 (defun org-grep-from-org (regexp)
 
@@ -308,18 +184,17 @@ Each of such function is given REGEXP as an argument.")
                   "; ")))
     (shell-command command t))
 
-  ;; Prefix found lines.
+  ;; Process received output.
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
-           (directory (file-name-directory file))
            (base (if org-grep-hide-extension
                      (file-name-base file)
-                   (file-name-nondirectory file))))
-      (replace-match
-       (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
-               "- [[file:\\1::\\2][" base ":]]\\2 :: "))
-
+                   (file-name-nondirectory file)))
+           (directory (file-name-directory file)))
+      ;; Prefix found lines.
+      (replace-match (concat "- [[file:\\1::\\2][" base "]]:\\2 :: "))
+      (org-grep-shrink-line)
       ;; Moderately try to resolve relative links.
       (while (re-search-forward "\\[\\[\\([^]\n:]+:\\)?\\([^]]+\\)"
                                 (line-end-position) t)
@@ -331,7 +206,23 @@ Each of such function is given REGEXP as an argument.")
                  (unless (memq (aref reference 0) '(?~ ?/))
                    (replace-match
                     (concat "[[" method directory reference)))))))
-      (forward-line))))
+      (forward-line 1))))
+
+(defun org-grep-from-org-shell-command (regexp)
+  (if org-grep-directories
+      (concat "find "
+              (if org-grep-directories
+                  (org-grep-join org-grep-directories " ")
+                org-directory)
+              (and org-grep-extensions
+                   (concat " -regex '.*\\("
+                           (org-grep-join
+                            (mapcar 'regexp-quote org-grep-extensions)
+                            "\\|")
+                           "\\)'"))
+              " -print0 | xargs -0 grep " org-grep-grep-options
+              " -n -- " (shell-quote-argument regexp))
+    ":"))
 
 (defun org-grep-from-gnus (regexp)
   (when (and org-grep-gnus-directory
@@ -347,24 +238,24 @@ Each of such function is given REGEXP as an argument.")
             " | grep -v"
             " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
             " | xargs grep " org-grep-grep-options
-            " -n " (shell-quote-argument regexp))))
+            " -n -- " (shell-quote-argument regexp))))
       (shell-command command t))
 
     ;; Prefix found lines.
     (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
       (let* ((file (match-string 1))
              (line (string-to-number (match-string 2)))
-             (base (file-name-nondirectory file))
-             (ref (save-match-data (org-grep-message-ref
+             (text (file-name-nondirectory file))
+             (link (save-match-data (org-grep-message-link
                                     file line org-grep-gnus-directory))))
         (save-match-data
-          (when (string-match "^[0-9]+$" base)
-            (setq base (file-name-nondirectory
+          (when (string-match "^[0-9]+$" text)
+            (setq text (file-name-nondirectory
                         (substring (file-name-directory file) 0 -1)))))
         (replace-match
-         (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
-                 "- [[" ref "][" base ":]]" (number-to-string line) " :: "))
-        (forward-line)))))
+         (concat "- [[" link "][" text "]]:" (number-to-string line) " :: "))
+        (org-grep-shrink-line)
+        (forward-line 1)))))
 
 (defun org-grep-from-rmail (regexp)
 
@@ -380,49 +271,241 @@ Each of such function is given REGEXP as an argument.")
   (while (re-search-forward "^\\([^:]+\\):\\([0-9]+\\):" nil t)
     (let* ((file (match-string 1))
            (line (string-to-number (match-string 2)))
-           (base (if org-grep-hide-extension
+           (text (if org-grep-hide-extension
                      (file-name-base file)
                    (file-name-nondirectory file)))
-           (ref (save-match-data (org-grep-message-ref file line nil))))
+           (link (save-match-data (org-grep-message-link file line nil))))
       (replace-match
-       (concat (downcase base) "\0" file "\0" (format "%5d" line) "\0"
-               "- [[" ref "][" base ":]]" (number-to-string line) " :: "))
-      (forward-line))))
+       (concat "- [[" link "][" text "]]:" (number-to-string line) " :: "))
+      (org-grep-shrink-line)
+      (forward-line 1))))
+
+;;; Buffer re-organization and display.
 
-(defun org-grep-from-org-shell-command (regexp)
-  (if org-grep-directories
-      (concat "find "
-              (if org-grep-directories
-                  (org-grep-join org-grep-directories " ")
-                org-directory)
-              (and org-grep-extensions
-                   (concat " -regex '.*\\("
-                           (org-grep-join
-                            (mapcar 'regexp-quote org-grep-extensions)
-                            "\\|")
-                           "\\)'"))
-              " -print0 | xargs -0 grep " org-grep-grep-options
-              " -n " (shell-quote-argument regexp))
-    ":"))
+(defun org-grep-clean-buffer (erase)
+  (fundamental-mode)
+  (setq buffer-read-only nil
+        buffer-undo-list nil)
+  (let ((buffer-undo-list t))
+    (if erase
+        (erase-buffer)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((start (point)))
+          (when (looking-at "- \\[.\\] ")
+            (replace-match "- ")
+            (beginning-of-line))
+          (if (org-grep-skip-prefix)
+              (let ((here (point)))
+                (when (search-backward "][dired]] " start t)
+                  (search-backward " =")
+                  (delete-region (point) (- here 4)))
+                (forward-line 1))
+            (forward-line 1)
+            (delete-region start (point))))))))
+
+(defun org-grep-display-browse ()
+  (interactive)
+  (org-grep-clean-buffer nil)
+  (let (base-info duplicates current-file)
+
+    ;; Decorate and sort, while taking note of duplicate keys.
+    (goto-char (point-min))
+    (while (not (eobp))
+      (let ((prefix-info (org-grep-skip-prefix)))
+        (when prefix-info
+          (let* ((text (cadr prefix-info))
+                 (file (caddr prefix-info))
+                 (line (cadddr prefix-info))
+                 (base (downcase text))
+                 (pair (assoc base base-info)))
+            (beginning-of-line)
+            (insert base "\0" file "\0" (format "%5s" line) "\0")
+            (cond ((not pair) (setq base-info (cons (cons base file) base-info)))
+                  ((string-equal (cdr pair) file))
+                  ((member (car pair) duplicates))
+                  (t (setq duplicates (cons base duplicates))))))
+        (forward-line 1)))
+    (sort-lines nil (point-min) (point-max))
+
+    ;; Undecorate, while adding disambiguating information.
+    (goto-char (point-min))
+    (while (not (eobp))
+      (looking-at "[^\0]*\0[^\0]*\0[^\0]*\0")
+      (delete-region (match-beginning 0) (match-end 0))
+      (let ((prefix-info (org-grep-skip-prefix)))
+        (let ((text (cadr prefix-info))
+              (file (caddr prefix-info)))
+          (if (or (= (following-char) ?\n)
+                  (member text duplicates))
+              (unless (and current-file (string-equal file current-file))
+                (let ((directory (file-name-directory file)))
+                  (backward-char 4)
+                  (insert " ="
+                          (abbreviate-file-name
+                           (if org-grep-hide-extension file directory))
+                          "= [[file:" directory "::" (regexp-quote text)
+                          "][dired]]")
+                  (forward-char 4))
+                (setq current-file file))
+            (setq current-file nil))))
+      (forward-line 1)))
+
+  ;; Insert title and overall header.
+  (goto-char (point-min))
+  (insert "#+TITLE: " (org-grep-title-string)
+          " [[elisp:(org-grep-display-edit)][edit]]"
+          " [[elisp:(org-grep-display-tree)][tree]]\n"
+          "\n"
+          "* Occurrences\n")
+
+  ;; Activate Org mode on the results.
+  (org-mode)
+  (goto-char (point-min))
+  (show-all)
+
+  ;; Highlight the search string and each ellipsis.
+  (hi-lock-face-buffer (org-grep-hi-lock-helper org-grep-regexp)
+                       'org-grep-match-face)
+  (hi-lock-face-buffer (regexp-quote org-grep-ellipsis)
+                       'org-grep-ellipsis-face)
+
+  ;; Add special commands to the keymap.
+  (use-local-map (copy-keymap (current-local-map)))
+  (setq buffer-read-only t)
+  (local-set-key "\C-c\C-c" 'org-grep-current-jump)
+  (local-set-key "\C-x`" 'org-grep-next-jump)
+  (local-set-key "." 'org-grep-current)
+  (local-set-key "e" 'org-grep-display-edit)
+  (local-set-key "g" 'org-grep-revert)
+  (local-set-key "n" 'org-grep-next)
+  (local-set-key "p" 'org-grep-previous)
+  (local-set-key "q" 'org-grep-quit)
+  (local-set-key "t" 'org-grep-display-tree)
+  (when (boundp 'org-mode-map)
+    (define-key org-mode-map "\C-x`" 'org-grep-maybe-next-jump)))
+
+(defun org-grep-display-edit ()
+  (interactive)
+  (org-grep-clean-buffer nil)
+  (goto-char (point-min))
+  (insert "#+TITLE: " (org-grep-title-string)
+          " [[elisp:(org-grep-display-browse)][browse]]"
+          " [[elisp:(org-grep-display-tree)][tree]]\n"
+          "\n"
+          "* Editable occurrences\n")
+  (while (re-search-forward org-grep-hit-regexp nil t)
+    (insert "[ ] ")
+    (forward-line 1))
+  (org-mode)
+  (goto-char (point-min))
+  (show-all))
+
+(defun org-grep-display-tree ()
+  (interactive)
+  (let ((buffer (current-buffer))
+        (temp (get-buffer-create org-grep-temp-buffer-name))
+        ;; INFO is a recursive structure, made up of a list of ITEMs.
+        ;; Each ITEM is either (START . END) or (SUBDIR INFO).  START
+        ;; and END are integers specifying the limits of a textual
+        ;; region in the original, already sorted hits buffer.  SUBDIR
+        ;; is a string representing the last fragment of a file path.
+        info current-file start)
+
+    ;; Digest all needed information into INFO.
+    (save-current-buffer
+      (set-buffer temp)
+      (erase-buffer)
+      (insert-buffer-substring buffer)
+      (org-grep-clean-buffer nil)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((prefix-info (org-grep-skip-prefix)))
+          (when prefix-info
+            (let ((method (car prefix-info))
+                  (file (caddr prefix-info)))
+              (unless (and current-file (string-equal file current-file))
+                (beginning-of-line)
+                (when current-file
+                  (setq info (org-grep-display-tree-add-file
+                              info start (point) current-file)))
+                (setq current-file file
+                      start (point))))))
+        (forward-line 1))
+      (when (and start (> (point-max) start))
+        (setq info (org-grep-display-tree-add-file
+                    info start (point-max) current-file))))
+
+    ;; Reorganise all saved information.
+    (org-grep-clean-buffer t)
+    (insert "#+TITLE: " (org-grep-title-string)
+            " [[elisp:(org-grep-display-browse)][browse]]"
+            " [[elisp:(org-grep-display-edit)][edit]]\n"
+            "\n")
+    ;; The first SUBDIR is always empty, this loop pops it out.
+    (mapc (lambda (pair)
+            (org-grep-display-tree-rebuild (cdr pair) temp "*" (car pair)))
+          (org-grep-display-tree-sort-info info)))
+
+  ;; Reactivate Org mode.
+  (org-mode)
+  (goto-char (point-min))
+  (org-overview)
+  (org-content))
+
+(defun org-grep-display-tree-add-file (info start end text)
+  (setq text (abbreviate-file-name (file-name-directory text)))
+  (when (= (aref text (1- (length text))) ?/)
+    (setq text (substring text 0 (1- (length text)))))
+  (org-grep-display-tree-digest
+   info start end
+   (mapcar (lambda (fragment) (concat fragment "/"))
+           (split-string text "/"))))
+
+(defun org-grep-display-tree-digest (info start end fragments)
+  "Return INFO recording that START to END are used for path FRAGMENTS."
+  (if fragments
+      (let ((pair (assoc (car fragments) info)))
+        (if (not pair)
+            (cons (cons (car fragments)
+                        (org-grep-display-tree-digest
+                         nil start end (cdr fragments)))
+                  info)
+          (rplacd pair (org-grep-display-tree-digest
+                        (cdr pair) start end (cdr fragments)))
+          info))
+    (cons (cons start end) info)))
+
+(defun org-grep-display-tree-rebuild (info buffer prefix path)
+
+    ;; Collapse hierarchy whenever possible.
+    (while (and (= (length info) 1) (stringp (caar info)))
+      (setq path (concat path (caar info))
+            info (cdar info)))
+
+    ;; Insert an Org header.
+    (insert prefix " =" path "= [[file:" path "][dired]]\n")
+
+    ;; Insert all information under that header.
+    (mapc (lambda (pair)
+            (if (stringp (car pair))
+                ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
+                (org-grep-display-tree-rebuild (cdr pair) buffer (concat prefix "*")
+                                            (concat path (car pair)))
+              ;; We have (START . END).  Insert items from the original hits buffer.
+              (insert-buffer-substring buffer (car pair) (cdr pair))))
+          (org-grep-display-tree-sort-info info)))
+
+(defun org-grep-display-tree-sort-info (info)
+  "Sort INFO to get all (START . END) first, then all (SUBDIR INFO)."
+  (sort info (lambda (a b)
+               (if (stringp (car a))
+                   (and (stringp (car b))
+                        (string-lessp (car a) (car b)))
+                 (or (stringp (car b))
+                     (< (car a) (car b)))))))
 
 ;;; Additional commands for an Org Grep hits buffer.
-
-(defun org-grep-copy ()
-  (interactive)
-  (let ((buffer (get-buffer-create
-                 (format org-grep-buffer-name-format
-                         org-grep-last-regexp))))
-    (copy-to-buffer buffer (point-min) (point-max))
-    (switch-to-buffer buffer)
-    (goto-char (point-min))
-    (delete-region (point) (line-end-position))
-    (insert "#+TITLE: Org Grep copy")
-    (while (re-search-forward org-grep-hit-regexp nil t)
-      (insert "[ ] ")
-      (forward-line 1))
-    (org-mode)
-    (goto-char (point-min))
-    (show-all)))
 
 (defun org-grep-current ()
   (interactive)
@@ -440,7 +523,7 @@ Each of such function is given REGEXP as an argument.")
 (defun org-grep-maybe-next-jump ()
   (interactive)
   (let ((buffer (current-buffer))
-        (hits (get-buffer org-grep-hits-buffer-name))
+        (hits (get-buffer org-grep-buffer-name))
         jumped)
     (when hits
       (pop-to-buffer hits)
@@ -471,131 +554,23 @@ Each of such function is given REGEXP as an argument.")
   (interactive)
   (kill-buffer))
 
-(defun org-grep-redo ()
+(defun org-grep-revert ()
   (interactive)
-  (when org-grep-last-regexp
-    (let ((org-grep-grep-options org-grep-last-options))
-      (org-grep-internal org-grep-last-regexp org-grep-last-full))))
-
-(defun org-grep-structure ()
-  (interactive)
-  (let ((buffer (current-buffer))
-        ;; INFO is a recursive structure, made up of a list of ITEMs.
-        ;; Each ITEM is either (START . END) or (SUBDIR INFO).  START
-        ;; and END are integers specifying the limits of a textual
-        ;; region in the original, already sorted hits buffer.  SUBDIR
-        ;; is a string representing the last fragment of a file path.
-        info path seen start)
-
-    ;; Digest all needed information into INFO.
-    (save-excursion
-      (goto-char (point-min))
-      (while (re-search-forward org-grep-hit-regexp nil t)
-        (cond ((looking-at "\\[\\[file:\\([^:]+\\)")
-               (setq seen (match-string-no-properties 1))
-               (unless (and path (string-equal seen path))
-                 (beginning-of-line)
-                 (when path
-                   (setq info (org-grep-structure-add-file
-                               info start (point) path)))
-                 (setq path seen
-                       start (point))
-                 (forward-line 1)))))
-      (when (and start (> (point-max) start))
-        (setq info (org-grep-structure-add-file
-                    info start (point-max) path))))
-
-    ;; Reorganise all saved information into a new buffer.
-    (switch-to-buffer (get-buffer-create
-                       (format org-grep-buffer-name-format
-                               org-grep-last-regexp)))
-    (erase-buffer)
-    (org-grep-insert-title "Org Grep structure" nil)
-    ;; The first SUBDIR is always empty, this loop pops it out.
-    (mapc (lambda (pair)
-            (org-grep-structure-rebuild (cdr pair) buffer "*" (car pair)))
-          (org-grep-structure-sort-info info))
-
-    ;; Use Org mode over the reconstructed buffer.
-    (org-mode)
-    (goto-char (point-min))
-    (org-overview)
-    (org-content)))
-
-(defun org-grep-structure-add-file (info start end text)
-  (setq text (abbreviate-file-name (file-name-directory text)))
-  (when (= (aref text (1- (length text))) ?/)
-    (setq text (substring text 0 (1- (length text)))))
-  (org-grep-structure-digest
-   info start end
-   (mapcar (lambda (fragment) (concat fragment "/"))
-           (split-string text "/"))))
-
-(defun org-grep-structure-digest (info start end fragments)
-  "Modify INFO to register that PATH uses START to END in the hits buffer."
-  (if fragments
-      (let ((pair (assoc (car fragments) info)))
-        (if (not pair)
-            (cons (cons (car fragments)
-                        (org-grep-structure-digest
-                         nil start end (cdr fragments)))
-                  info)
-          (rplacd pair (org-grep-structure-digest
-                        (cdr pair) start end (cdr fragments)))
-          info))
-    (cons (cons start end) info)))
-
-(defun org-grep-structure-rebuild (info buffer prefix path)
-
-    ;; Collapse hierarchy whenever possible.
-    (while (and (= (length info) 1) (stringp (caar info)))
-      (setq path (concat path (caar info))
-            info (cdar info)))
-
-    ;; Insert an Org header.
-    (insert prefix " =" path "=   [[file:" path "][dired]]\n")
-
-    ;; Insert all information under that header.
-    (mapc (lambda (pair)
-            (if (stringp (car pair))
-                ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
-                (org-grep-structure-rebuild (cdr pair) buffer (concat prefix "*")
-                                            (concat path (car pair)))
-              ;; We have (START . END).  Insert items from the original hits buffer.
-              (insert-buffer-substring buffer (car pair) (cdr pair))))
-          (org-grep-structure-sort-info info)))
-
-(defun org-grep-structure-sort-info (info)
-  "Sort INFO to get all (START . END) first, then all (SUBDIR INFO)."
-  (sort info (lambda (a b)
-               (if (stringp (car a))
-                   (and (stringp (car b))
-                        (string-lessp (car a) (car b)))
-                 (or (stringp (car b))
-                     (< (car a) (car b)))))))
+  (when org-grep-regexp
+    (let ((org-grep-grep-options org-grep-options))
+      (apply org-grep-function org-grep-regexp nil))))
 
 ;;; Miscellaneous service functions.
 
-(defun org-grep-insert-title (title comment)
-  (goto-char (point-min))
-  (insert "#+TITLE: " title "\n"
-          "=org-grep" (if org-grep-last-full "-full" "")
-          (if (string-equal org-grep-grep-options "")
-              ""
-            (concat " " org-grep-grep-options))
-          " " (shell-quote-argument org-grep-last-regexp) "="
-          (if comment (concat " " comment) "")
-          "\n\n"))
-
-(defun org-grep-message-ref (file line gnus-directory)
-  (unless (and org-grep-mail-buffer (buffer-name org-grep-mail-buffer))
-    (setq org-grep-mail-buffer (get-buffer-create org-grep-mail-buffer-name)))
+(defun org-grep-message-link (file line gnus-directory)
+  (unless (and org-grep-temp-buffer (buffer-name org-grep-temp-buffer))
+    (setq org-grep-temp-buffer (get-buffer-create org-grep-temp-buffer-name)))
   (save-excursion
-    (set-buffer org-grep-mail-buffer)
-    (unless (string-equal file org-grep-mail-buffer-file)
+    (set-buffer org-grep-temp-buffer)
+    (unless (string-equal file org-grep-temp-buffer-file)
       (erase-buffer)
       (insert-file file)
-      (setq org-grep-mail-buffer-file file))
+      (setq org-grep-temp-buffer-file file))
     (let ((case-fold-search t))
       (goto-line line)
       ;; FIXME: Should limit search to current message header!
@@ -631,5 +606,78 @@ Each of such function is given REGEXP as an argument.")
        (lambda (text) (format "[%s%s]" (upcase text) text))
        regexp)
     regexp))
+
+(defun org-grep-shrink-line ()
+  "Try to shorten the remaining of line.  Do not move point."
+  (let ((here (point))
+        (limit (line-end-position)))
+
+    ;; Remove extra whitespace.
+    (while (re-search-forward " [ \f\t\b]+\\|[\f\t\b][ \f\t\b]*" limit t)
+      (replace-match "  ")
+      (setq limit (line-end-position)))
+
+    ;; Possibly elide big contexts.
+    (when (and org-grep-ellipsis org-grep-maximum-context-size)
+      (let* ((ellipsis-length (length org-grep-ellipsis))
+             (distance-trigger (+ org-grep-maximum-context-size
+                                  ellipsis-length))
+             (half-maximum (/ org-grep-maximum-context-size 2))
+             start-context end-context
+             resume-point end-delete delete-size shrink-delta)
+        (goto-char here)
+        (while (< (point) limit)
+          (setq start-context (point))
+          (if (re-search-forward regexp limit t)
+              (setq end-context (match-beginning 0)
+                    resume-point (match-end 0))
+            (setq end-context limit
+                  resume-point limit))
+          (when (> (- end-context start-context) distance-trigger)
+            (goto-char (- end-context half-maximum))
+            (forward-word)
+            (backward-word)
+            (setq end-delete (point))
+            (goto-char (+ start-context half-maximum))
+            (backward-word)
+            (forward-word)
+            (setq delete-size (- end-delete (point))
+                  shrink-delta (- delete-size ellipsis-length))
+            (when (> shrink-delta 0)
+              (delete-char delete-size)
+              (insert org-grep-ellipsis)
+              (setq resume-point (- resume-point shrink-delta)
+                    limit (- limit shrink-delta))))
+          (goto-char resume-point))))
+
+    (goto-char here)))
+
+(defun org-grep-skip-prefix ()
+  "Skip line prefix and return (METHOD TEXT FILE LINE); else return nil."
+  ;; Carefully avoid matching "*" or "+" beyond " :: "; otherwise, the
+  ;; Emacs stack might explode on very long lines.
+  (let ((here (point)))
+    (when (and (looking-at "^- \\[\\[")
+               (search-forward " :: " (line-end-position) t))
+      (let ((prefix (buffer-substring (+ here 4) (- (point) 4))))
+        (when (string-match "\\`\\(.+\\)\\]\\[\\(.*\\)\\]\\]:\\([0-9]+\\)"
+                            prefix)
+          (let ((ref (match-string-no-properties 1 prefix))
+                (text (match-string-no-properties 2 prefix))
+                (line (match-string-no-properties 3 prefix))
+                method file)
+            (cond ((string-match "\\`file:\\(.+\\)::" ref)
+                   (list 'file text (match-string 1 ref) line))
+                  ((string-match "\\`gnus:\\(nnml\\|nnfolder\\):\\(.*\\)#" ref)
+                   (list 'gnus text (match-string 2 ref) line))
+                  ((string-match "\\`rmail:\\(.*\\)#" ref)
+                   (list 'rmail text (match-string 1 ref) line)))))))))
+
+(defun org-grep-title-string ()
+  (let ((text (concat org-grep-regexp
+                      " (" (symbol-name org-grep-function))))
+    (when (not (string-equal org-grep-grep-options ""))
+      (setq text (concat text " " org-grep-grep-options)))
+    (concat text ")")))
 
 ;;; org-grep.el ends here
