@@ -178,11 +178,10 @@ Each of such function is given REGEXP as an argument.")
 
   ;; Execute shell command.
   (goto-char (point-max))
-  (let ((command (org-grep-join
-                  (mapcar (lambda (function) (apply function (list regexp)))
-                          (cons 'org-grep-from-org-shell-command
-                                org-grep-extra-shell-commands))
-                  "; ")))
+  (let ((command (mapconcat (lambda (function) (apply function (list regexp)))
+                            (cons 'org-grep-from-org-shell-command
+                                  org-grep-extra-shell-commands)
+                            "; ")))
     (shell-command command t))
 
   ;; Process received output.
@@ -213,13 +212,11 @@ Each of such function is given REGEXP as an argument.")
   (if org-grep-directories
       (concat "find "
               (if org-grep-directories
-                  (org-grep-join org-grep-directories " ")
+                  (mapconcat #'identity org-grep-directories " ")
                 org-directory)
               (and org-grep-extensions
                    (concat " -regex '.*\\("
-                           (org-grep-join
-                            (mapcar 'regexp-quote org-grep-extensions)
-                            "\\|")
+                           (mapconcat #'regexp-quote org-grep-extensions "\\|")
                            "\\)'"))
               " -print0 | xargs -0 grep " org-grep-grep-options
               " -n -- " (shell-quote-argument regexp))
@@ -262,10 +259,8 @@ Each of such function is given REGEXP as an argument.")
 
   ;; Execute shell command.
   (goto-char (point-max))
-  (let ((command (org-grep-join
-                  (mapcar (lambda (function) (apply function (list regexp)))
-                          org-grep-rmail-shell-commands)
-                  "; ")))
+  (let ((command (mapconcat (lambda (function) (apply function (list regexp)))
+                            org-grep-rmail-shell-commands "; ")))
     (shell-command command t))
 
   ;; Prefix found lines.
@@ -485,9 +480,10 @@ Each of such function is given REGEXP as an argument.")
     (mapc (lambda (pair)
             (if (stringp (car pair))
                 ;; We have (SUBDIR INFO).  Insert subdirectories recursively.
-                (org-grep-display-tree-rebuild (cdr pair) buffer (concat prefix "*")
-                                            (concat path (car pair)))
-              ;; We have (START . END).  Insert items from the original hits buffer.
+                (org-grep-display-tree-rebuild
+                 (cdr pair) buffer (concat prefix "*")
+                 (concat path (car pair)))
+              ;; We have (START . END).  Insert from the original hits buffer.
               (insert-buffer-substring buffer (car pair) (cdr pair))))
           (org-grep-display-tree-sort-info info)))
 
@@ -582,14 +578,6 @@ Each of such function is given REGEXP as an argument.")
                             "#" id)
                   (concat "gnus:nnfolder:" (substring group 1) "#" id)))
             (concat "rmail:" file "#" id)))))))
-
-(defun org-grep-join (fragments separator)
-  (if fragments
-      (concat (car fragments)
-              (apply 'concat
-                     (mapcar (lambda (fragment) (concat separator fragment))
-                             (cdr fragments))))
-    ""))
 
 (defun org-grep-hi-lock-helper (regexp)
   ;; Stolen from hi-lock-process-phrase.
