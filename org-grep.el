@@ -294,7 +294,7 @@ Each of such function is given REGEXP as an argument.")
           (if (org-grep-skip-prefix)
               (let ((here (point)))
                 (when (search-backward "][dired]] " start t)
-                  (search-backward " =")
+                  (search-backward " [[file:")
                   (delete-region (point) (- here 4)))
                 (forward-line 1))
             (forward-line 1)
@@ -302,50 +302,7 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-display-browse ()
   (interactive)
-  (org-grep-clean-buffer nil)
-  (let (base-info duplicates current-file)
-
-    ;; Decorate and sort, while taking note of duplicate keys.
-    (goto-char (point-min))
-    (while (not (eobp))
-      (let ((prefix-info (org-grep-skip-prefix)))
-        (when prefix-info
-          (let* ((text (cadr prefix-info))
-                 (file (caddr prefix-info))
-                 (line (cadddr prefix-info))
-                 (base (downcase text))
-                 (pair (assoc base base-info)))
-            (beginning-of-line)
-            (insert base "\0" file "\0" (format "%5s" line) "\0")
-            (cond ((not pair) (setq base-info (cons (cons base file) base-info)))
-                  ((string-equal (cdr pair) file))
-                  ((member (car pair) duplicates))
-                  (t (setq duplicates (cons base duplicates))))))
-        (forward-line 1)))
-    (sort-lines nil (point-min) (point-max))
-
-    ;; Undecorate, while adding disambiguating information.
-    (goto-char (point-min))
-    (while (not (eobp))
-      (looking-at "[^\0]*\0[^\0]*\0[^\0]*\0")
-      (delete-region (match-beginning 0) (match-end 0))
-      (let ((prefix-info (org-grep-skip-prefix)))
-        (let ((text (cadr prefix-info))
-              (file (caddr prefix-info)))
-          (if (or (= (following-char) ?\n)
-                  (member text duplicates))
-              (unless (and current-file (string-equal file current-file))
-                (let ((directory (file-name-directory file)))
-                  (backward-char 4)
-                  (insert " ="
-                          (abbreviate-file-name
-                           (if org-grep-hide-extension file directory))
-                          "= [[file:" directory "::" (regexp-quote text)
-                          "][dired]]")
-                  (forward-char 4))
-                (setq current-file file))
-            (setq current-file nil))))
-      (forward-line 1)))
+  (org-grep-sort-and-disambiguate)
 
   ;; Insert title and overall header.
   (goto-char (point-min))
@@ -381,7 +338,7 @@ Each of such function is given REGEXP as an argument.")
 
 (defun org-grep-display-edit ()
   (interactive)
-  (org-grep-clean-buffer nil)
+  (org-grep-sort-and-disambiguate)
   (goto-char (point-min))
   (insert "#+TITLE: " (org-grep-title-string "edit") "\n"
           "\n"
@@ -474,7 +431,7 @@ Each of such function is given REGEXP as an argument.")
             info (cdar info)))
 
     ;; Insert an Org header.
-    (insert prefix " =" path "= [[file:" path "][dired]]\n")
+    (insert prefix " [[file:" path "][dired]] =" path "=\n")
 
     ;; Insert all information under that header.
     (mapc (lambda (pair)
@@ -495,6 +452,52 @@ Each of such function is given REGEXP as an argument.")
                         (string-lessp (car a) (car b)))
                  (or (stringp (car b))
                      (< (car a) (car b)))))))
+
+(defun org-grep-sort-and-disambiguate ()
+  (org-grep-clean-buffer nil)
+  (let (base-info duplicates current-file)
+
+    ;; Decorate and sort, while taking note of duplicate keys.
+    (goto-char (point-min))
+    (while (not (eobp))
+      (let ((prefix-info (org-grep-skip-prefix)))
+        (when prefix-info
+          (let* ((text (cadr prefix-info))
+                 (file (caddr prefix-info))
+                 (line (cadddr prefix-info))
+                 (base (downcase text))
+                 (pair (assoc base base-info)))
+            (beginning-of-line)
+            (insert base "\0" file "\0" (format "%5s" line) "\0")
+            (cond ((not pair) (setq base-info (cons (cons base file) base-info)))
+                  ((string-equal (cdr pair) file))
+                  ((member (car pair) duplicates))
+                  (t (setq duplicates (cons base duplicates))))))
+        (forward-line 1)))
+    (sort-lines nil (point-min) (point-max))
+
+    ;; Undecorate, while adding disambiguating information.
+    (goto-char (point-min))
+    (while (not (eobp))
+      (looking-at "[^\0]*\0[^\0]*\0[^\0]*\0")
+      (delete-region (match-beginning 0) (match-end 0))
+      (let ((prefix-info (org-grep-skip-prefix)))
+        (let ((text (cadr prefix-info))
+              (file (caddr prefix-info)))
+          (if (or (= (following-char) ?\n)
+                  (member text duplicates))
+              (unless (and current-file (string-equal file current-file))
+                (let ((directory (file-name-directory file)))
+                  (backward-char 4)
+                  (insert " [[file:" directory "::" (regexp-quote text)
+                          "][dired]] ="
+                          (abbreviate-file-name
+                           (if org-grep-hide-extension file directory))
+                          "=")
+                  (forward-char 4))
+                (setq current-file file))
+            (setq current-file nil))))
+      (forward-line 1))))
 
 ;;; Additional commands for an Org Grep hits buffer.
 
