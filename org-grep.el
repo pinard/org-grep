@@ -93,40 +93,34 @@ Each of such function is given REGEXP as an argument.")
 ;;; Main driver functions.
 
 ;;;###autoload
-(defun org-grep (regexp &optional arg)
-  (interactive
-   (list (if (use-region-p)
-             (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a regexp to grep: "))
-         current-prefix-arg))
-  (if (and arg (called-interactively-p 'any))
-      (let ((org-grep-grep-options
-             (read-string "Grep options: "
-                          (and (not (string-equal org-grep-grep-options ""))
-                               (concat org-grep-grep-options " ")))))
-        (org-grep-load-buffer regexp nil))
-    (org-grep-load-buffer regexp nil))
-  (let ((buffer-undo-list t))
-    (org-grep-display-browse))
-  (message org-grep-message-final))
+(defun org-grep (regexp &optional options)
+  (interactive (org-grep-interact))
+  (let ((org-grep-grep-options (or options org-grep-grep-options)))
+    (org-grep-load-buffer regexp nil)
+    (let ((buffer-undo-list t))
+      (org-grep-display-browse))
+    (message org-grep-message-final)))
 
 ;;;###autoload
 (defun org-grep-full (regexp &optional arg)
-  (interactive
-   (list (if (use-region-p)
-             (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a regexp to fully grep: "))
-         current-prefix-arg))
-  (if (and arg (called-interactively-p 'any))
-      (let ((org-grep-grep-options
+  (interactive (org-grep-interact))
+  (let ((org-grep-grep-options (or options org-grep-grep-options)))
+    (org-grep-load-buffer regexp t)
+    (let ((buffer-undo-list t))
+      (org-grep-display-browse))
+    (message org-grep-message-final)))
+
+(defun org-grep-interact ()
+  (let ((options
+         (if current-prefix-arg
              (read-string "Grep options: "
                           (and (not (string-equal org-grep-grep-options ""))
                                (concat org-grep-grep-options " ")))))
-        (org-grep-load-buffer regexp t))
-    (org-grep-load-buffer regexp t))
-  (let ((buffer-undo-list t))
-    (org-grep-display-browse))
-  (message org-grep-message-final))
+        (regexp
+         (if (use-region-p)
+             (buffer-substring (region-beginning) (region-end))
+           (read-string "Enter a regexp to grep: "))))
+    (list regexp options)))  
 
 (defun org-grep-load-buffer (regexp full)
   (when (string-equal regexp "")
