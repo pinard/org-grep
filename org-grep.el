@@ -86,6 +86,7 @@ Each of such function is given REGEXP as an argument.")
 (defvar org-grep-hit-regexp "^- ")
 (defvar org-grep-message-initial "Finding occurrences...")
 (defvar org-grep-message-final nil)
+(defvar org-grep-regexp-history nil)
 (defvar org-grep-temp-buffer nil)
 (defvar org-grep-temp-buffer-file nil)
 (defvar org-grep-temp-buffer-name "*Org Grep temp*")
@@ -119,7 +120,8 @@ Each of such function is given REGEXP as an argument.")
         (regexp
          (if (use-region-p)
              (buffer-substring (region-beginning) (region-end))
-           (read-string "Enter a regexp to grep: "))))
+           (read-string "Enter a regexp to grep: " nil
+                        'org-grep-regexp-history))))
     (list regexp options)))  
 
 (defun org-grep-load-buffer (regexp full)
