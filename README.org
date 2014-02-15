@@ -185,6 +185,13 @@ a few Emacs variables may be set prior to, or after loading
        only used with the *org-grep-full* command.  Limitations about
        links and positioning also apply, as explained in the
        description of the *org-grep-gnus-directory* variable.
+  - org-grep-shell-command :: Path to the shell executable for
+       launching commands under the scene.  If this variable is *nil*,
+       which is the default value, the shell is taken from the
+       *shell-file-name* variable in Emacs, itself initialized the /SHELL/
+       environment variable.  If you are using some shell with unusual
+       syntax, *fish* for example, you then need to set *org-grep-shell*
+       to something more traditional, like =/bin/sh= or =/bin/dash=.
 
 ** Extra shell commands
 

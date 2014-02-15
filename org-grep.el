@@ -66,6 +66,9 @@ Each of such function is given REGEXP as an argument.")
   "List of functions providing shell commands to grep mailboxes.
 Each of such function is given REGEXP as an argument.")
 
+(defvar org-grep-shell-command nil
+  "Shell executable for launching commands.")
+
 (defface org-grep-match-face
   '((((background dark)) (:background "lavender" :foreground "black"))
     (t (:background "lavender")))
@@ -142,7 +145,8 @@ Each of such function is given REGEXP as an argument.")
   (save-some-buffers t)
   (message org-grep-message-initial)
   (setq buffer-undo-list nil)
-  (let ((buffer-undo-list t))
+  (let ((buffer-undo-list t)
+        (shell-file-name (or org-grep-shell-command shell-file-name)))
     (org-grep-from-org regexp)
     (when full
       (org-grep-from-rmail regexp)
