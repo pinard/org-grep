@@ -182,6 +182,7 @@ Each of such function is given REGEXP as an argument.")
                             (cons 'org-grep-from-org-shell-command
                                   org-grep-extra-shell-commands)
                             "; ")))
+    (message (concat org-grep-message-initial " (from Org)"))
     (shell-command command t))
 
   ;; Process received output.
@@ -237,6 +238,7 @@ Each of such function is given REGEXP as an argument.")
             " '\\(^\\|/\\)\\(Incoming\\|archive/\\|active$\\|/junk$\\)'"
             " | xargs grep " org-grep-grep-options
             " -n -- " (shell-quote-argument regexp))))
+      (message (concat org-grep-message-initial " (from Gnus)"))
       (shell-command command t))
 
     ;; Prefix found lines.
@@ -261,6 +263,7 @@ Each of such function is given REGEXP as an argument.")
   (goto-char (point-max))
   (let ((command (mapconcat (lambda (function) (apply function (list regexp)))
                             org-grep-rmail-shell-commands "; ")))
+    (message (concat org-grep-message-initial " (from Rmail)"))
     (shell-command command t))
 
   ;; Prefix found lines.
