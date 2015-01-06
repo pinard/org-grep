@@ -676,4 +676,5 @@ Each of such function is given REGEXP as an argument.")
       (setq modes (cdr modes)))
     result))
 
+(provide 'org-grep)
 ;;; org-grep.el ends here
